@@ -2,16 +2,8 @@
 // REQUIRED: Instructions
 // ----------------------------------------------------------------------------
 /*
-  For this first project, we've provided a significant amount of scaffolding
-  in your test suite. We've done this to:
-
-    1. Set expectations, by example, of where the bar for testing is.
-    2. Encourage more students to embrace an Advanced Typescript Hardhat setup.
-    3. Reduce the amount of time consumed this week by "getting started friction".
-
   Please note that:
 
-    - We will not be so generous on future projects!
     - The tests provided are about ~90% complete.
     - IMPORTANT:
       - We've intentionally left out some tests that would reveal potential
