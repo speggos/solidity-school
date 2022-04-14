@@ -27,18 +27,17 @@
 */
 // ----------------------------------------------------------------------------
 
+// @ts-nocheck
+
 import { expect } from "chai";
 import { ethers, network } from "hardhat";
-import { BigNumber } from "ethers";
+import { BigNumber, Contract } from "ethers";
 import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 import { Project, ProjectFactory, ProjectFactory__factory } from "../typechain";
+import { getContractFactory } from "@nomiclabs/hardhat-ethers/types";
+import { Sign } from "crypto";
 
-// ----------------------------------------------------------------------------
-// OPTIONAL: Constants and Helper Functions
-// ----------------------------------------------------------------------------
-// We've put these here for your convenience. Feel free to use them if they
-// are helpful!
 const SECONDS_IN_DAY: number = 60 * 60 * 24;
 const ONE_ETHER: BigNumber = ethers.utils.parseEther("1");
 
@@ -59,25 +58,22 @@ describe("Crowdfundr", () => {
   let deployer: SignerWithAddress;
   let alice: SignerWithAddress;
   let bob: SignerWithAddress;
+  let cindy: SignerWithAddress;
 
   let ProjectFactory: ProjectFactory__factory;
   let projectFactory: ProjectFactory;
 
   beforeEach(async () => {
-    [deployer, alice, bob] = await ethers.getSigners();
+    [deployer, alice, bob, cindy] = await ethers.getSigners();
 
-    // NOTE: You may need to pass arguments to the `deploy` function if your
-    //       ProjectFactory contract's constructor has input parameters
     ProjectFactory = await ethers.getContractFactory("ProjectFactory");
     projectFactory =
-      (await ProjectFactory.deploy(/* FILL_ME_IN: */)) as ProjectFactory;
+      (await ProjectFactory.deploy()) as ProjectFactory;
     await projectFactory.deployed();
   });
 
   describe("ProjectFactory: Additional Tests", () => {
     /* 
-      TODO: You may add additional tests here if you need to
-
       NOTE: If you wind up writing Solidity code to protect against a
             vulnerability that is not tested for below, you should add
             at least one test here.
@@ -86,33 +82,67 @@ describe("Crowdfundr", () => {
     */
   });
 
-  describe("ProjectFactory", () => {
+  describe.only("ProjectFactory", () => {
     it("Deploys a contract", () => {
       expect(projectFactory.address).to.be.ok;
     });
 
     it("Can register a single project", async () => {
-      expect(true).to.be.false;
+      await projectFactory.create(10);
+      //@ts-ignore
+      expect((await projectFactory.getProjects()).length).to.be.equal(1);
     });
 
     it("Can register multiple projects", async () => {
-      expect(true).to.be.false;
+      await projectFactory.create(10);
+      await projectFactory.create(20);
+
+      const projects = await projectFactory.getProjects();
+
+      expect(projects.length).to.be.equal(2);
+
+      expect (projects[0]).to.not.be.equal(projects[1]);
     });
 
     it("Registers projects with the correct owner", async () => {
-      expect(true).to.be.false;
+
+      await projectFactory.connect(alice).create(10);
+
+      const projects = await projectFactory.getProjects();
+      const project = await ethers.getContractAt("Project", projects[0]);
+
+      expect(await project.creator()).to.be.equal(alice.address);
+      expect(await project.creator()).to.not.be.equal(bob.address);
     });
 
     it("Registers projects with a preset funding goal (in units of ether)", async () => {
-      expect(true).to.be.false;
+      await projectFactory.connect(alice).create(10);
+
+      const projects = await projectFactory.getProjects();
+      const project = await ethers.getContractAt("Project", projects[0]);
+
+      expect(await project.goal()).to.equal(10);
+      expect(await project.goal()).to.not.equal(1);
+
     });
 
-    it('Emits a "FILL_ME_IN" event after registering a project', async () => {
-      expect(true).to.be.false;
+    it('Emits a "ProjectCreated" event after registering a project', async () => {
+      await expect(projectFactory.create(1)).to.emit(projectFactory, "ProjectCreated");
     });
 
     it("Allows multiple contracts to accept ETH simultaneously", async () => {
-      expect(true).to.be.false;
+      await projectFactory.connect(alice).create(10);
+      await projectFactory.connect(bob).create(20);
+
+      const projects = await projectFactory.getProjects();
+      const aliceProject = await ethers.getContractAt("Project", projects[0]);
+      const bobProject = await ethers.getContractAt("Project", projects[1]);
+      
+      await aliceProject.contribute({value: ethers.utils.parseEther("2")});
+      await bobProject.contribute({value: ethers.utils.parseEther("1")});
+
+      expect(await aliceProject.contributed()).to.be.equal(ethers.utils.parseEther("2"));
+      expect(await bobProject.contributed()).to.be.equal(ethers.utils.parseEther("1"));
     });
   });
 
@@ -132,9 +162,7 @@ describe("Crowdfundr", () => {
     let project: Project;
 
     beforeEach(async () => {
-      // TODO: Your ProjectFactory contract will need a `create` method, to
-      //       create new Projects
-      const txReceiptUnresolved = await projectFactory.create(/* FILL_ME_IN */);
+      const txReceiptUnresolved = await projectFactory.create(10);
       const txReceipt = await txReceiptUnresolved.wait();
 
       projectAddress = txReceipt.events![0].args![0];

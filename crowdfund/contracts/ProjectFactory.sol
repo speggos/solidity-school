@@ -1,19 +1,23 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.4;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "./Project.sol";
+import "hardhat/console.sol";
 
 contract ProjectFactory {
-    Project[] private projects;
-    address private masterContract;
+    Project[] public projects;
 
-    event ProjectCreated(address newProject, uint goal); // Note: you should add additional data fields in this event
+    event ProjectCreated(address project, uint goal, address creator);
 
     function create(uint _goal) external {
-        Project newProject = new Project(_goal, msg.sender);
-        projects.push(newProject);
 
-        emit ProjectCreated(address(newProject), _goal);
+        Project project = new Project(_goal, msg.sender);
+        projects.push(project);
+
+        emit ProjectCreated(address(project), _goal, msg.sender);
+    }
+
+    function getProjects() external view returns (Project[] memory) {
+        return projects;
     }
 }
