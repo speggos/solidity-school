@@ -82,7 +82,7 @@ describe("Crowdfundr", () => {
     */
   });
 
-  describe.only("ProjectFactory", () => {
+  describe("ProjectFactory", () => {
     it("Deploys a contract", () => {
       expect(projectFactory.address).to.be.ok;
     });
@@ -172,44 +172,67 @@ describe("Crowdfundr", () => {
     describe("Contributions", () => {
       describe("Contributors", () => {
         it("Allows the creator to contribute", async () => {
-          expect(true).to.be.false;
+          await project.contribute({value: ethers.utils.parseEther("1")});
+
+          expect(await project.getContributors(deployer.address)).to.equal(ethers.utils.parseEther("1"));
+          expect(await project.getContributors(alice.address)).to.equal(ethers.utils.parseEther("0"));
         });
 
         it("Allows any EOA to contribute", async () => {
-          expect(true).to.be.false;
+          (await project.connect(alice)).contribute({value: ethers.utils.parseEther("1")})
+
+          expect(await project.getContributors(deployer.address)).to.equal(ethers.utils.parseEther("0"));
+          expect(await project.getContributors(alice.address)).to.equal(ethers.utils.parseEther("1"));
         });
 
         it("Allows an EOA to make many separate contributions", async () => {
-          expect(true).to.be.false;
+          (await project.connect(alice)).contribute({value: ethers.utils.parseEther("1")})
+
+          expect(await project.getContributors(deployer.address)).to.equal(ethers.utils.parseEther("0"));
+          expect(await project.getContributors(alice.address)).to.equal(ethers.utils.parseEther("1"));
+
+          (await project.connect(alice)).contribute({value: ethers.utils.parseEther("1")})
+
+          expect(await project.getContributors(alice.address)).to.equal(ethers.utils.parseEther("2"));
         });
 
-        it('Emits a "FILL_ME_IN" event after a contribution is made', async () => {
-          expect(true).to.be.false;
+        it('Emits a "Contribution" event after a contribution is made', async () => {
+          await expect(project.contribute({value: ethers.utils.parseEther("1")})).to.emit(project, "Contribution").withArgs(deployer.address, ethers.utils.parseEther("1"));    
         });
       });
 
       describe("Minimum ETH Per Contribution", () => {
         it("Reverts contributions below 0.01 ETH", async () => {
-          expect(true).to.be.false;
+          expect(project.contribute({value: ethers.utils.parseEther("0.001")})).to.revertedWith("VM Exception while processing transaction: reverted with reason string 'Minimum contribution is 0.01 ETH'");
         });
 
         it("Accepts contributions of exactly 0.01 ETH", async () => {
-          expect(true).to.be.false;
+          expect(await project.contribute({value: ethers.utils.parseEther("0.01")})).to.be.ok;     
         });
       });
 
       describe("Final Contributions", () => {
         it("Allows the final contribution to exceed the project funding goal", async () => {
-          // Note: After this contribution, the project is fully funded and should not
-          //       accept any additional contributions. (See next test.)
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("6.0")});
+          await project.connect(bob).contribute({value: ethers.utils.parseEther("6.0")});
+
+          await expect(await project.contributed()).to.be.equal(ethers.utils.parseEther("12"));
+          await expect(await project.contributed()).to.not.equal(ethers.utils.parseEther("22"));
+
         });
 
         it("Prevents additional contributions after a project is fully funded", async () => {
-          expect(true).to.be.false;
+          await project.contribute({value: ethers.utils.parseEther("6.0")});
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("6.0")});
+
+          await expect(project.connect(bob).contribute({value: ethers.utils.parseEther("6.0")})).to.revertedWith("Funding goal already reached");       
         });
 
         it("Prevents additional contributions after 30 days have passed since Project instance deployment", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("2.0")});
+          await timeTravel(35 * SECONDS_IN_DAY);
+
+          await expect(project.connect(bob).contribute({value: ethers.utils.parseEther("2.0")})).to.revertedWith(">30 days has passed");       
         });
       });
     });
@@ -217,124 +240,202 @@ describe("Crowdfundr", () => {
     describe("Withdrawals", () => {
       describe("Project Status: Active", () => {
         it("Prevents the creator from withdrawing any funds", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("2.0")});
+          await expect(await roject.connect(deployer).creatorClaim(1)).to.revertedWith("Project funding goal not reached");
         });
 
         it("Prevents contributors from withdrawing any funds", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("2.0")});
+          await expect(await project.connect(alice).creatorClaim(1)).to.revertedWith("Only project creator can claim");        
         });
 
         it("Prevents non-contributors from withdrawing any funds", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("2.0")});
+          await expect(await project.connect(bob).creatorClaim(1)).to.revertedWith("Only project creator can claim");
         });
       });
 
       describe("Project Status: Success", () => {
         it("Allows the creator to withdraw some of the contribution balance", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("6.0")});
+          await expect(await project.connect(deployer).creatorClaim(1)).to.revertedWith("Project funding goal not reached");
+
+          await project.connect(bob).contribute({value: ethers.utils.parseEther("6.0")});
+          await expect(await project.connect(deployer).creatorClaim(1)).to.be.ok
         });
 
         it("Allows the creator to withdraw the entire contribution balance", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("6.0")});
+          await expect(project.connect(deployer).creatorClaim(1)).to.revertedWith("Project funding goal not reached");
+          await project.connect(bob).contribute({value: ethers.utils.parseEther("6.0")});
+          await expect(await project.connect(deployer).creatorClaim(12)).to.be.ok
         });
 
         it("Allows the creator to make multiple withdrawals", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("12.0")});
+          await expect(await project.connect(deployer).creatorClaim(8)).to.be.ok
+          await expect(await project.connect(deployer).creatorClaim(3)).to.be.ok
+          await expect(await project.connect(deployer).creatorClaim(1)).to.be.ok
         });
 
         it("Prevents the creator from withdrawing more than the contribution balance", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("12.0")});
+          await expect(project.connect(deployer).creatorClaim(15)).to.revertedWith("Cannot claim more than contributed");
         });
 
-        it('Emits a "FILL_ME_IN" event after a withdrawal is made by the creator', async () => {
-          expect(true).to.be.false;
+        it('Emits a "CreatorClaim" event after a withdrawal is made by the creator', async () => {
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("12.0")});
+          await expect(project.connect(deployer).creatorClaim(10)).to.emit(project, "CreatorClaim")
         });
 
         it("Prevents contributors from withdrawing any funds", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("12.0")});
+          expect(project.connect(alice).creatorClaim(1)).to.revertedWith("Only project creator can claim");
         });
 
         it("Prevents non-contributors from withdrawing any funds", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("12.0")});
+          expect(project.connect(bob).creatorClaim(1)).to.revertedWith("Only project creator can claim");
         });
       });
 
       describe("Project Status: Failure", () => {
         it("Prevents the creator from withdrawing any funds", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("2.0")});
+          await timeTravel(35 * SECONDS_IN_DAY);
+
+          await expect(project.connect(deployer).creatorClaim(2)).to.revertedWith("Project funding goal not reached");
         });
 
         it("Prevents contributors from withdrawing any funds", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("2.0")});
+          await timeTravel(35 * SECONDS_IN_DAY);
+
+          await expect(project.connect(alice).creatorClaim(2)).to.revertedWith("Only project creator can claim");
         });
 
         it("Prevents non-contributors from withdrawing any funds", async () => {
-          expect(true).to.be.false;
+          await project.connect(alice).contribute({value: ethers.utils.parseEther("2.0")});
+          await timeTravel(35 * SECONDS_IN_DAY);
+
+          await expect(project.connect(bob).creatorClaim(2)).to.revertedWith("Only project creator can claim");
         });
       });
     });
 
     describe("Refunds", () => {
       it("Allows contributors to be refunded when a project fails", async () => {
-        expect(true).to.be.false;
+        await project.connect(alice).contribute({value: ethers.utils.parseEther("2.0")});
+        await timeTravel(35 * SECONDS_IN_DAY);
+
+        expect(await project.connect(alice).withdrawFromFailedProject()).to.be.ok;
       });
 
       it("Prevents contributors from being refunded if a project has not failed", async () => {
-        expect(true).to.be.false;
+        await project.connect(alice).contribute({value: ethers.utils.parseEther("12.0")});
+        await timeTravel(35 * SECONDS_IN_DAY);
+
+        await expect(project.connect(alice).withdrawFromFailedProject()).to.revertedWith("Project succeeded. Not claimable");
       });
 
-      it('Emits a "FILL_ME_IN" event after a a contributor receives a refund', async () => {
-        expect(true).to.be.false;
+      it('Emits a "RefundIssued" event after a a contributor receives a refund', async () => {
+        await project.connect(alice).contribute({value: ethers.utils.parseEther("2.0")});
+        await timeTravel(35 * SECONDS_IN_DAY);
+
+        await expect(project.connect(alice).withdrawFromFailedProject()).to.emit(project, "RefundIssued");
       });
     });
 
     describe("Cancelations (creator-triggered project failures)", () => {
       it("Allows the creator to cancel the project if < 30 days since deployment has passed ", async () => {
-        expect(true).to.be.false;
+        await timeTravel(15 * SECONDS_IN_DAY);
+        expect (await project.connect(deployer).cancelProject()).to.be.ok;
       });
 
       it("Prevents the creator from canceling the project if at least 30 days have passed", async () => {
-        expect(true).to.be.false;
+        await timeTravel(35 * SECONDS_IN_DAY);
+        await expect(project.connect(deployer).cancelProject()).to.revertedWith("Cannot cancel after 30 days")
       });
 
-      it('Emits a "FILL_ME_IN" event after a project is cancelled by the creator', async () => {
-        expect(true).to.be.false;
+      it('Emits a "ProjectCancelled" event after a project is cancelled by the creator', async () => {
+        expect(await project.connect(deployer).cancelProject()).to.not.emit(project, "ProjectCancelled");
       });
     });
 
     describe("NFT Contributor Badges", () => {
       it("Awards a contributor with a badge when they make a single contribution of at least 1 ETH", async () => {
-        expect(true).to.be.false;
+
+        await expect(project.connect(alice).contribute({value: ethers.utils.parseEther("1")}))
+        .to.emit(project, "Transfer")
+        .withArgs(ethers.constants.AddressZero,alice.address, 0);
+
       });
 
       it("Awards a contributor with a badge when they make multiple contributions to a single project that sum to at least 1 ETH", async () => {
-        expect(true).to.be.false;
+        await expect(project.connect(alice).contribute({value: ethers.utils.parseEther("0.5")}))
+        .to.not.emit(project, "Transfer")
+        .withArgs(ethers.constants.AddressZero,alice.address, 0);    
+        
+        await expect(project.connect(alice).contribute({value: ethers.utils.parseEther("1.5")}))
+        .to.emit(project, "Transfer")
+        .withArgs(ethers.constants.AddressZero,alice.address, 0);
       });
 
       it("Does not award a contributor with a badge if their total contribution to a single project sums to < 1 ETH", async () => {
-        expect(true).to.be.false;
+        await expect(project.connect(alice).contribute({value: ethers.utils.parseEther("0.5")}))
+        .to.not.emit(project, "Transfer")
+        .withArgs(ethers.constants.AddressZero,alice.address, 21);   
       });
 
       it("Awards a contributor with a second badge when their total contribution to a single project sums to at least 2 ETH", async () => {
-        // Note: One address can receive multiple badges for a single project,
-        //       but they should only receive 1 badge per 1 ETH contributed.
-        expect(true).to.be.false;
+        await expect(project.connect(alice).contribute({value: ethers.utils.parseEther("1.8")}))
+        .to.emit(project, "Transfer")
+        .withArgs(ethers.constants.AddressZero,alice.address, 0);    
+        
+        await expect(project.connect(alice).contribute({value: ethers.utils.parseEther("0.7")}))
+        .to.emit(project, "Transfer")
+        .withArgs(ethers.constants.AddressZero,alice.address, 2);
       });
 
       it("Does not award a contributor with a second badge if their total contribution to a single project is > 1 ETH but < 2 ETH", async () => {
-        expect(true).to.be.false;
+        await expect(project.connect(alice).contribute({value: ethers.utils.parseEther("0.8")}))
+        .to.not.emit(project, "Transfer")
+        .withArgs(ethers.constants.AddressZero,alice.address, 0);    
+        
+        await expect(project.connect(alice).contribute({value: ethers.utils.parseEther("0.7")}))
+        .to.emit(project, "Transfer")
+        .withArgs(ethers.constants.AddressZero,alice.address, 0);
       });
 
       it("Awards contributors with different NFTs for contributions to different projects", async () => {
-        expect(true).to.be.false;
+        const txReceiptUnresolved = await projectFactory.create(10);
+        const txReceipt = await txReceiptUnresolved.wait();
+
+        let project2Address = txReceipt.events![0].args![0];
+        let project2 = await ethers.getContractAt("Project", project2Address);
+
+        await expect(project.connect(alice).contribute({value: ethers.utils.parseEther("1.2")}))
+        .to.emit(project, "Transfer")
+        .withArgs(ethers.constants.AddressZero,alice.address, 0);
+
+        await expect(project2.connect(alice).contribute({value: ethers.utils.parseEther("1.2")}))
+        .to.emit(project2, "Transfer")
+        .withArgs(ethers.constants.AddressZero,alice.address, 0);    
       });
 
       it("Allows contributor badge holders to trade the NFT to another address", async () => {
-        expect(true).to.be.false;
+        project.connect(alice).contribute({value: ethers.utils.parseEther("1.2")});
+        await expect(project.connect(alice).transferFrom(alice.address,bob.address, 0))
+        .to.emit(project, "Transfer")
+        .withArgs(alice.address, bob.address, 0);
       });
 
       it("Allows contributor badge holders to trade the NFT to another address even after its related project fails", async () => {
-        expect(true).to.be.false;
+        project.connect(alice).contribute({value: ethers.utils.parseEther("1.2")});
+        project.cancelProject();
+        await expect(project.connect(alice).transferFrom(alice.address,bob.address, 0))
+        .to.emit(project, "Transfer")
+        .withArgs(alice.address, bob.address, 0);
       });
     });
   });
