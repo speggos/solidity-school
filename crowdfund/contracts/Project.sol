@@ -35,11 +35,14 @@ contract Project is ERC721 {
         contributors[msg.sender] += val;
         contributed += val;
 
-        while (val >= 1 ether || contributors[msg.sender] >= 1 ether  ) {
+        bool firstPass = true;
+
+        while (val >= 1 ether || (contributors[msg.sender] >= 1 ether && firstPass)  ) {
             _mint(msg.sender, nftsMinted);
             nftsMinted++;
             if (val < 1 ether) break;
             val-= 1 ether;
+            firstPass = false;
         }
 
         if (contributed > goal * 10**18) {
