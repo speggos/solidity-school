@@ -72,13 +72,22 @@ describe("Crowdfundr", () => {
   });
 
   describe("ProjectFactory: Additional Tests", () => {
-    /* 
-      NOTE: If you wind up writing Solidity code to protect against a
-            vulnerability that is not tested for below, you should add
-            at least one test here.
+    it("Correctly returns projects after calling getProjects()", async () => {
 
-      DO NOT: Delete or change the test names for the tests provided below
-    */
+      expect(await projectFactory.getProjects()).to.deep.equal([]);
+      expect( (await projectFactory.getProjects()).length).to.equal(0);
+
+      await projectFactory.create(1);
+      expect( (await projectFactory.getProjects()).length).to.equal(1);
+
+      await projectFactory.create(10);
+      expect( (await projectFactory.getProjects()).length).to.equal(2);
+    });
+
+    it("Deploys projects with a goal >0", async () => {
+      await expect (projectFactory.create(0)).to.revertedWith("Goal must be >0");
+    })
+
   });
 
   describe("ProjectFactory", () => {

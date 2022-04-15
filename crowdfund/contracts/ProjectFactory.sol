@@ -7,10 +7,10 @@ import "hardhat/console.sol";
 contract ProjectFactory {
     Project[] public projects;
 
-    event ProjectCreated(address project, uint goal, address creator);
+    event ProjectCreated(address project, uint256 goal, address creator);
 
-    function create(uint _goal) external {
-
+    function create(uint256 _goal) external {
+        require (_goal > 0, "Goal must be >0");
         Project project = new Project(_goal, msg.sender);
         projects.push(project);
 
