@@ -40,6 +40,9 @@ import { Sign } from "crypto";
 
 const SECONDS_IN_DAY: number = 60 * 60 * 24;
 const ONE_ETHER: BigNumber = ethers.utils.parseEther("1");
+const TEN_ETHER: BigNumber = ethers.utils.parseEther("10");
+const TWENTY_ETHER: BigNumber = ethers.utils.parseEther("20");
+
 
 // Bump the timestamp by a specific amount of seconds
 const timeTravel = async (seconds: number) => {
@@ -77,15 +80,15 @@ describe("Crowdfundr", () => {
       expect(await projectFactory.getProjects()).to.deep.equal([]);
       expect( (await projectFactory.getProjects()).length).to.equal(0);
 
-      await projectFactory.create(1);
+      await projectFactory.create( ONE_ETHER );
       expect( (await projectFactory.getProjects()).length).to.equal(1);
 
-      await projectFactory.create(10);
+      await projectFactory.create(TEN_ETHER);
       expect( (await projectFactory.getProjects()).length).to.equal(2);
     });
 
     it("Deploys projects with a goal >0", async () => {
-      await expect (projectFactory.create(0)).to.revertedWith("Goal must be >0");
+      await expect (projectFactory.create(ethers.utils.parseEther("0"))).to.revertedWith("Goal must be >0");
     })
 
   });
@@ -96,14 +99,14 @@ describe("Crowdfundr", () => {
     });
 
     it("Can register a single project", async () => {
-      await projectFactory.create(10);
+      await projectFactory.create(TEN_ETHER);
       // @ts-ignore
       expect((await projectFactory.getProjects()).length).to.be.equal(1);
     });
 
     it("Can register multiple projects", async () => {
-      await projectFactory.create(10);
-      await projectFactory.create(20);
+      await projectFactory.create(TEN_ETHER);
+      await projectFactory.create(TWENTY_ETHER);
 
       const projects = await projectFactory.getProjects();
 
@@ -113,7 +116,7 @@ describe("Crowdfundr", () => {
     });
 
     it("Registers projects with the correct owner", async () => {
-      await projectFactory.connect(alice).create(10);
+      await projectFactory.connect(alice).create(TEN_ETHER);
 
       const projects = await projectFactory.getProjects();
       const project = await ethers.getContractAt("Project", projects[0]);
@@ -123,25 +126,25 @@ describe("Crowdfundr", () => {
     });
 
     it("Registers projects with a preset funding goal (in units of ether)", async () => {
-      await projectFactory.connect(alice).create(10);
+      await projectFactory.connect(alice).create(TEN_ETHER);
 
       const projects = await projectFactory.getProjects();
       const project = await ethers.getContractAt("Project", projects[0]);
 
-      expect(await project.goal()).to.equal(10);
-      expect(await project.goal()).to.not.equal(1);
+      expect(await project.goal()).to.equal(TEN_ETHER);
+      expect(await project.goal()).to.not.equal(ONE_ETHER);
     });
 
     it('Emits a "ProjectCreated" event after registering a project', async () => {
-      await expect(projectFactory.create(1)).to.emit(
+      await expect(projectFactory.create(ONE_ETHER)).to.emit(
         projectFactory,
         "ProjectCreated"
       );
     });
 
     it("Allows multiple contracts to accept ETH simultaneously", async () => {
-      await projectFactory.connect(alice).create(10);
-      await projectFactory.connect(bob).create(20);
+      await projectFactory.connect(alice).create(TEN_ETHER);
+      await projectFactory.connect(bob).create(TEN_ETHER);
 
       const projects = await projectFactory.getProjects();
       const aliceProject = await ethers.getContractAt("Project", projects[0]);
@@ -164,7 +167,7 @@ describe("Crowdfundr", () => {
     let project: Project;
 
     beforeEach(async () => {
-      const txReceiptUnresolved = await projectFactory.create(10);
+      const txReceiptUnresolved = await projectFactory.create(TEN_ETHER);
       const txReceipt = await txReceiptUnresolved.wait();
 
       projectAddress = txReceipt.events![0].args![0];
@@ -228,6 +231,33 @@ describe("Crowdfundr", () => {
       expect(numTransfers).to.equal(3);
     });
 
+    it("Awards the correct number of NFTs upon a transfer 1<ETH<2 followed by a smaller transfer of 0.01 ETH", async () => {
+      let txReceiptUnresolved = await project
+        .connect(alice)
+        .contribute({ value: ethers.utils.parseEther("1.4") });
+      let { events } = await txReceiptUnresolved.wait();
+
+      let numTransfers = 0;
+      for (let i = 0; i < events.length; i++) {
+        if (events[i].event === "Transfer") {
+          numTransfers++;
+        }
+      }
+
+      txReceiptUnresolved = await project
+        .connect(alice)
+        .contribute({ value: ethers.utils.parseEther("0.01") });
+      const receipt = await txReceiptUnresolved.wait();
+      events = receipt.events;
+
+      for (let i = 0; i < events.length; i++) {
+        if (events[i].event === "Transfer") {
+          numTransfers++;
+        }
+      }
+      expect(numTransfers).to.equal(1);
+    });
+
     it("Awards the correct number of NFTs upon a large contribution", async () => {
       const txReceiptUnresolved = await project
         .connect(alice)
@@ -250,7 +280,7 @@ describe("Crowdfundr", () => {
     let project: Project;
 
     beforeEach(async () => {
-      const txReceiptUnresolved = await projectFactory.create(10);
+      const txReceiptUnresolved = await projectFactory.create(TEN_ETHER);
       const txReceipt = await txReceiptUnresolved.wait();
 
       projectAddress = txReceipt.events![0].args![0];
@@ -468,7 +498,7 @@ describe("Crowdfundr", () => {
             .connect(alice)
             .contribute({ value: ethers.utils.parseEther("12.0") });
           await expect(
-            project.connect(deployer).creatorClaim(15)
+            project.connect(deployer).creatorClaim(TWENTY_ETHER)
           ).to.revertedWith("Cannot claim more than contributed");
         });
 
@@ -668,13 +698,13 @@ describe("Crowdfundr", () => {
       });
 
       it("Awards contributors with different NFTs for contributions to different projects", async () => {
-        let txReceiptUnresolved = await projectFactory.create(10);
+        let txReceiptUnresolved = await projectFactory.create(TEN_ETHER);
         let txReceipt = await txReceiptUnresolved.wait();
 
         const projectAddress = txReceipt.events![0].args![0];
         const project = await ethers.getContractAt("Project", projectAddress);
 
-        txReceiptUnresolved = await projectFactory.create(20);
+        txReceiptUnresolved = await projectFactory.create(TWENTY_ETHER);
         txReceipt = await txReceiptUnresolved.wait();
 
         const project2Address = txReceipt.events![0].args![0];

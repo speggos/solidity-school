@@ -13,10 +13,14 @@ contract Project is ERC721 {
     bool projectSuccess = false;
     uint256 public nftsMinted = 0;
     mapping(address => uint256) public contributors;
+    mapping (address => uint256) public NFTsPerContributor;
+
+    uint constant ETH_TO_WEI = 10**18;
+    uint constant MIN_CONTRIBUTION = 0.01 ether;
 
     event Contribution(address contributor, uint256 amount);
     event ProjectSuccess(uint256 totalContribution);
-    event CreatorClaim(uint256 amountInEther);
+    event CreatorClaim(uint256 amount);
     event RefundIssued(address contributor, uint256 amount);
     event ProjectCancelled();
 
@@ -27,30 +31,25 @@ contract Project is ERC721 {
     }
 
     function contribute() external payable {
-        require(msg.value >= 0.01 ether, "Minimum contribution is 0.01 ETH");
-        require(contributed / 10**18 < goal, "Funding goal already reached");
+        require(msg.value >= MIN_CONTRIBUTION, "Minimum contribution is 0.01 ETH");
+        require(contributed < goal, "Funding goal already reached");
         require(
             (block.timestamp - creationTime) < 30 days,
             ">30 days has passed"
         );
 
-        uint256 val = msg.value;
-        contributors[msg.sender] += val;
-        contributed += val;
+        contributors[msg.sender] += msg.value;
+        contributed += msg.value;
 
-        bool firstPass = true;
-
-        while (
-            val >= 1 ether || (contributors[msg.sender] >= 1 ether && firstPass)
-        ) {
-            _mint(msg.sender, nftsMinted);
+        uint supporterContributions = contributors[msg.sender];
+        uint flooredContributions = (supporterContributions - (supporterContributions % 1 ether)) / 1 ether;
+        while (NFTsPerContributor[msg.sender] < flooredContributions) {
+            _safeMint(msg.sender, nftsMinted);
             nftsMinted++;
-            if (val < 1 ether) break;
-            val -= 1 ether;
-            firstPass = false;
+            NFTsPerContributor[msg.sender]++;
         }
 
-        if (contributed > goal * 10**18) {
+        if (contributed > goal) {
             projectSuccess = true;
             emit ProjectSuccess(contributed);
         }
@@ -58,32 +57,32 @@ contract Project is ERC721 {
         emit Contribution(msg.sender, msg.value);
     }
 
-    function creatorClaim(uint256 _amountInEther) external {
+    function creatorClaim(uint256 _amount) external {
         require(msg.sender == creator, "Only project creator can claim");
         require(
-            contributed / 10**18 > goal || projectSuccess,
+            contributed > goal || projectSuccess,
             "Project funding goal not reached"
         );
         require(
-            _amountInEther * 10**18 <= contributed,
+            _amount <= contributed,
             "Cannot claim more than contributed"
         );
         require(!projectCancelled, "Project cancelled. Cannot claim");
 
-        contributed -= _amountInEther * 10**18;
-        payable(msg.sender).transfer(_amountInEther * 10**18);
+        contributed -= _amount;
+        emit CreatorClaim(_amount);
 
-        emit CreatorClaim(_amountInEther);
-    }
+        payable(msg.sender).transfer(_amount);    }
 
     function withdrawFromFailedProject() external {
         require(contributors[msg.sender] > 0, "You did not contribute");
         require(
-            (block.timestamp - creationTime) > 30 days || projectCancelled,
+            (block.timestamp - creationTime) > 30 days,
             "30 days have not passed"
         );
+        require (!projectCancelled, "Project Cancelled");
         require(
-            goal > contributed / 10**18 || projectCancelled,
+            goal > contributed || projectCancelled,
             "Project succeeded. Not claimable"
         );
 

@@ -10,7 +10,7 @@ contract ProjectFactory {
     event ProjectCreated(address project, uint256 goal, address creator);
 
     function create(uint256 _goal) external {
-        require (_goal > 0, "Goal must be >0");
+        require (_goal > 0.01 ether, "Goal must be >0");
         Project project = new Project(_goal, msg.sender);
         projects.push(project);
 
