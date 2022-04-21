@@ -61,16 +61,16 @@ describe("Crowdfundr", () => {
   let deployer: SignerWithAddress;
   let alice: SignerWithAddress;
   let bob: SignerWithAddress;
-  let cindy: SignerWithAddress;
+  let treasury: SignerWithAddress;
 
   let ProjectFactory: ProjectFactory__factory;
   let projectFactory: ProjectFactory;
 
   beforeEach(async () => {
-    [deployer, alice, bob, cindy] = await ethers.getSigners();
+    [deployer, alice, bob, treasury] = await ethers.getSigners();
 
     ProjectFactory = await ethers.getContractFactory("ProjectFactory");
-    projectFactory = (await ProjectFactory.deploy()) as ProjectFactory;
+    projectFactory = (await ProjectFactory.deploy(treasury.address)) as ProjectFactory;
     await projectFactory.deployed();
   });
 
