@@ -86,7 +86,25 @@ describe("ICO Assignment", function () {
       await ico.connect(alice).invest({value: toEther(1)});
       await ico.connect(alice).claimTokens();
       await expect(token.connect(bob).transferFrom(alice.address, bob.address, toEther(1*5))).to.revertedWith("ERC20:");
-    })
+    });
+
+    it("Taxes token transfers at 2% when turned on", async() => {
+      await token.setICOContract(ico.address);
+
+      await ico.progressPhase();
+      await ico.progressPhase();
+
+      await ico.connect(a).invest({value: toEther(30)});
+
+      await token.setTax(true);
+      await ico.connect(a).claimTokens();
+      expect(await token.balanceOf(a.address)).to.equal(toEther(30*5));
+
+      await token.connect(a).transfer(alice.address, toEther(30*5));
+      expect(await token.balanceOf(alice.address)).to.equal(toEther(30*.98*5));
+      expect(await token.balanceOf(treasury.address)).to.equal(toEther(500000-30*.98*5));
+      expect(await token.balanceOf(a.address)).to.equal(0);
+    });
   });
 
   describe("Token Claim", () => {
@@ -111,7 +129,7 @@ describe("ICO Assignment", function () {
       await ico.connect(c).invest({value: toEther(10)});    
     });
 
-    it("Lets users claim tokens from donations during each phase", async() => {
+    it("Lets users claim tokens from donations during each phase, setting their unclaimed tokens to 0", async() => {
       expect(await token.balanceOf(a.address)).to.equal(0);
       expect(await token.balanceOf(b.address)).to.equal(0);
       expect(await token.balanceOf(c.address)).to.equal(0);
@@ -127,6 +145,12 @@ describe("ICO Assignment", function () {
       expect(await token.balanceOf(c.address)).to.equal(toEther(5*10));
       expect(await token.balanceOf(d.address)).to.equal(toEther(5*10));
       expect(await token.balanceOf(e.address)).to.equal(toEther(5*10));
+
+      expect(await ico.investors(a.address)).to.equal(0);
+      expect(await ico.investors(b.address)).to.equal(0);
+      expect(await ico.investors(c.address)).to.equal(0);
+      expect(await ico.investors(d.address)).to.equal(0);
+      expect(await ico.investors(e.address)).to.equal(0);
 
       expect(await token.balanceOf(treasury.address)).to.equal(toEther(500000-80*5));
     });
@@ -164,18 +188,7 @@ describe("ICO Assignment", function () {
       await token.setTax(false);
       await ico.connect(c).claimTokens();
       expect(await token.balanceOf(c.address)).to.equal(toEther(10*5));
-    })
-
-    it("Taxes token transfers at 2% when turned on", async() => {
-      await token.setTax(true);
-      await ico.connect(a).claimTokens();
-      expect(await token.balanceOf(a.address)).to.equal(toEther(30*5));
-
-      await token.connect(a).transfer(alice.address, toEther(30*5));
-      expect(await token.balanceOf(alice.address)).to.equal(toEther(30*.98*5));
-      expect(await token.balanceOf(treasury.address)).to.equal(toEther(500000-30*.98*5));
-      expect(await token.balanceOf(a.address)).to.equal(0);
-    })
+    });
   })
 
   describe("Phases", () => {

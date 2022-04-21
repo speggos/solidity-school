@@ -17,6 +17,7 @@ contract SpaceToken is ERC20 {
     }
 
     constructor(address _treasury) ERC20 ("SpaceToken", "SPC") {
+        require(_treasury != address(0), "Treasury not set");
         owner = msg.sender;
         treasury = _treasury;
         _mint(treasury, 500000*(10**18));
@@ -32,8 +33,8 @@ contract SpaceToken is ERC20 {
 
     function _transfer(address _from, address _to, uint256 _amount) internal override {
         if (taxTransfers && _from != treasury) {
-            super._transfer(_from, _to, _amount/100*98);
-            super._transfer(_from, treasury, _amount/100*2);
+            super._transfer(_from, _to, _amount*98/100);
+            super._transfer(_from, treasury, _amount*2/100);
         } else {
            super. _transfer(_from, _to, _amount);
         }

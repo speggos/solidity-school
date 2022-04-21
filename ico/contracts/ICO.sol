@@ -15,7 +15,7 @@ contract ICO {
     uint constant SEED_INDIVIDUAL_LIMIT = 1500 ether;
     uint constant GENERAL_INDIVIDUAL_LIMIT = 1000 ether;
     uint constant TOTAL_LIMIT = 30000 ether;
-    uint constant SPCPerETH = 5;
+    uint constant SPC_PER_ETH = 5;
 
     mapping (address => bool) public whitelist;
     mapping (address => uint) public investors;
@@ -37,6 +37,7 @@ contract ICO {
     }
 
     constructor(address _tokenContract) {
+        require(_tokenContract != address(0), "Token contract not set");
         owner = msg.sender;
         tokenContract = _tokenContract;
     }
@@ -75,15 +76,15 @@ contract ICO {
 
         investors[msg.sender] = 0;
 
-        emit Claimed(msg.sender, invested * 5);
+        emit Claimed(msg.sender, invested * SPC_PER_ETH);
 
-        (bool success, ) = tokenContract.call(abi.encodeWithSignature("claimFromICO(address,uint256)",msg.sender,invested*5));
+        (bool success, ) = tokenContract.call(abi.encodeWithSignature("claimFromICO(address,uint256)",msg.sender,invested*SPC_PER_ETH));
         require (success, "Mint unsuccessful");
     }
 
     function checkEligibility() internal view {
         if (currentPhase == Phase.SEED) {
-            require(whitelist[msg.sender] == true, "Not Whitelisted");
+            require(whitelist[msg.sender], "Not Whitelisted");
             require(investors[msg.sender] + msg.value <= SEED_INDIVIDUAL_LIMIT, "Investment too high");
             require(totalInvestment + msg.value <= SEED_ALLOCAITON, "Round Funded");
         } else if (currentPhase == Phase.GENERAL) {
