@@ -77,6 +77,16 @@ describe("ICO Assignment", function () {
       await expect(token.connect(alice).setTax(false)).to.revertedWith("Not Owner");
       await expect(token.connect(alice).setICOContract(ico.address)).to.revertedWith("Not Owner");
     });
+
+    it("Doesn't allow arbitrary addresses from spending user tokens", async() => {
+      await ico.progressPhase();
+      await ico.progressPhase();
+      await token.setICOContract(ico.address);
+
+      await ico.connect(alice).invest({value: toEther(1)});
+      await ico.connect(alice).claimTokens();
+      await expect(token.connect(bob).transferFrom(alice.address, bob.address, toEther(1*5))).to.revertedWith("ERC20:");
+    })
   });
 
   describe("Token Claim", () => {
@@ -127,7 +137,6 @@ describe("ICO Assignment", function () {
 
     it("Emits a Claimed event when an investor claims tokens", async() => {
       await expect(ico.connect(a).claimTokens()).to.emit(ico, "Claimed");
-
     })
 
     it("Does not allow tokens to be claimed from an ICO contract from a different owner than Token", async() => {

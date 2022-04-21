@@ -1,3 +1,13 @@
+# Design Exercise
+
+The base requirements give contributors their SPC tokens immediately. How would you design your contract to vest the awarded tokens instead, i.e. award tokens to users over time, linearly?
+
+I'd add the following:
+- Specify a "begin" of a vesting period. This could happen at a specific block, timestamp, or after some onlyOwner function that ends the ICO
+- Vesting period will be some length, probably a constant set during deployment
+- The claimTokens() function will do math calculating the % of time passed between the vesting period beginning and the vesting period ending, allowing that % of the user allocation to be given. Of course this math can also allow non-linear vesting, or a cliff (requiring x time passes before claiming)
+
+
 # Advanced Sample Hardhat Project
 
 This project demonstrates an advanced Hardhat use case, integrating other tools commonly used alongside Hardhat in the ecosystem.
