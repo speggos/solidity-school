@@ -17,12 +17,13 @@ contract ICO {
     uint constant TOTAL_LIMIT = 30000 ether;
     uint constant SPC_PER_ETH = 5;
 
+    uint public totalInvestment = 0;
+
     mapping (address => bool) public whitelist;
     mapping (address => uint) public investors;
 
     Phase public currentPhase = Phase.SEED;
     bool public paused = false;
-    uint public totalInvestment = 0;
     address owner;
     address tokenContract;
 

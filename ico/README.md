@@ -1,3 +1,12 @@
+# Contract Deployment
+
+SpaceToken:
+https://rinkeby.etherscan.io/address/0xee5c7450d1999426efe59d576781a48c0f7afcc9
+
+ICO:
+https://rinkeby.etherscan.io/address/0x1965eb72a7d906a9bb86b15fa9203a933c63359c
+
+
 # Design Exercise
 
 The base requirements give contributors their SPC tokens immediately. How would you design your contract to vest the awarded tokens instead, i.e. award tokens to users over time, linearly?
