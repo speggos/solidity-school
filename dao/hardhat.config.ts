@@ -30,6 +30,12 @@ const config: HardhatUserConfig = {
       accounts:
         process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
     },
+    hardhat: {
+      accounts: {
+        count: 30,
+        accountsBalance: "20000000000000000000000"
+      }
+    }
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS !== undefined,
