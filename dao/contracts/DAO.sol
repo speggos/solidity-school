@@ -22,12 +22,6 @@ contract DAO {
         mapping(address => bool) votes;
     }
 
-    modifier validProposal(uint proposalId) {
-        // votesFor == 0 for all non-proposed proposals
-        require(proposals[proposalId].votesFor > 0, "Not proposed");
-        _;
-    }
-
     modifier onlyMembers() {
         require (members[msg.sender], "Not a member");
         _;
@@ -102,7 +96,7 @@ contract DAO {
         }
     }
 
-    function vote(uint proposalId) external validProposal(proposalId) onlyMembers() notExecuted(proposalId) {
+    function vote(uint proposalId) external onlyMembers() notExecuted(proposalId) {
         Proposal storage proposal = proposals[proposalId];
 
         require(!proposal.votes[msg.sender], "Already voted");
@@ -123,7 +117,6 @@ contract DAO {
         require(targets.length > 0, "Empty proposal");
 
         uint proposalId = hashProposal(targets, values, calldatas, keccak256(bytes(description)));
-console.log(proposalId);
         Proposal storage proposal = proposals[proposalId];
         require(proposal.votesFor == 0, "Proposal already exists");
 
@@ -144,13 +137,14 @@ console.log(proposalId);
     }
 
     function execute(
-        uint proposalId,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         string memory description
-    ) external validProposal(proposalId) {
+    ) external {
+        uint proposalId = hashProposal(targets, values, calldatas, keccak256(bytes(description)));
         Proposal storage proposal = proposals[proposalId];
+        require(proposals[proposalId].votesFor > 0, "Not proposed");
         require (!proposal.executed, "Proposal already executed");
         require (memberCount / proposal.votesFor < 100 / QUORUM_PERCENT, "Quorum not reached");
         require (proposalId == hashProposal(targets, values, calldatas, keccak256(bytes(description))), "Targets/Values/Calldata incorrect");

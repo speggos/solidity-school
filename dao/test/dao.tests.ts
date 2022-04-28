@@ -36,17 +36,14 @@ describe("DAO", async () => {
   let k: SignerWithAddress,l: SignerWithAddress,m: SignerWithAddress,n: SignerWithAddress,o: SignerWithAddress;
   let p: SignerWithAddress;
 
-  console.log('here')
-  NFTMARKETPLACE = await ethers.getContractFactory("NftMarketplace");
-  console.log('here2')
-
-  nft = await NFTMARKETPLACE.deploy();
-  await nft.deployed();
-
   beforeEach(async () => {
     DAO = await ethers.getContractFactory("DAO");
     dao = await DAO.deploy();
     await dao.deployed();
+
+    NFTMARKETPLACE = await ethers.getContractFactory("NftMarketplace");
+    nft = await NFTMARKETPLACE.deploy();
+    await nft.deployed();
 
     nftInterface = new ethers.utils.Interface(nftInterfaceAbi);
 
@@ -90,8 +87,6 @@ describe("DAO", async () => {
     let calldatas: string[];
     let desc: string;
     let desc2: string;
-    let proposalId1: BigNumber;
-    let proposalId2: BigNumber;
 
     beforeEach(async() => {
       // a and b are not members
@@ -104,8 +99,6 @@ describe("DAO", async () => {
       await dao.connect(e).buyMembership({value: toEther(1)});
       await dao.connect(f).buyMembership({value: toEther(1)});
 
-
-
       targets = [nft.address];
       values = [toEther(42)];
       desc = "Description1";
@@ -113,24 +106,27 @@ describe("DAO", async () => {
 
       const callVars = ethers.utils.defaultAbiCoder.encode(["uint256"], [NFTID]);
       calldatas = [nftInterface.encodeFunctionData("buy", [callVars])];
-
-      proposalId1 = ethers.BigNumber.from("65549752930427182904172520865323973012982643088477395325488736525418936982378");
-      proposalId2 = ethers.BigNumber.from("54403391070521099326126564078986492945236230079963711120276195212463493943723");
-
- console.log(targets)     
-
     });
 
     it("Allows multiple proposals to be created and voted on", async() => {
-      await dao.propose(targets, values, calldatas, desc);
+      const txReceiptUnresolved = await dao.propose(targets, values, calldatas, desc);
+      let { events } = await txReceiptUnresolved.wait();
+      // @ts-ignore
+      const proposalId1 = events[0].args[0];
+
       expect ( (await dao.proposals(proposalId1)).votesFor).to.equal(1);
       await dao.connect(alice).vote(proposalId1);
       expect ( (await dao.proposals(proposalId1)).votesFor).to.equal(2);
 
+      const txReceiptUnresolved2 = await dao.propose(targets, values, calldatas, desc2);
+      let tx2 = await txReceiptUnresolved2.wait();
+      // @ts-ignore
+      const proposalId2 = tx2.events[0].args[0];
 
-      expect ( (await dao.proposals(proposalId2)).votesFor).to.equal(0);
-      await dao.connect(bob).propose(targets, values, calldatas, desc2);
       expect ( (await dao.proposals(proposalId2)).votesFor).to.equal(1);
+      await dao.connect(alice).vote(proposalId2);
+      expect ( (await dao.proposals(proposalId2)).votesFor).to.equal(2);
+
     });
 
     it("Does not allow two of the same proposal to be created", async() => {
@@ -143,57 +139,75 @@ describe("DAO", async () => {
     });
 
     it("Allows proposals to be voted on", async() => {
-      expect ( (await dao.proposals(proposalId1)).votesFor).to.equal(0);
-      await dao.propose(targets, values, calldatas, desc);
-      expect ( (await dao.proposals(proposalId1)).votesFor).to.equal(1);
-      // await dao.connect(alice).vote(proposalId1);
-      // expect ( (await dao.proposals(proposalId1)).votesFor).to.equal(2);
-      // await dao.connect(bob).vote(proposalId1);
-      // expect ( (await dao.proposals(proposalId1)).votesFor).to.equal(3);
-      // await dao.connect(cindy).vote(proposalId1);
-      // expect ( (await dao.proposals(proposalId1)).votesFor).to.equal(4);
+      const txReceiptUnresolved = await dao.propose(targets, values, calldatas, desc);
+      let { events } = await txReceiptUnresolved.wait();
+      // @ts-ignore
+      const proposalId = events[0].args[0];
+
+      expect ( (await dao.proposals(proposalId)).votesFor).to.equal(1);
+      await dao.connect(alice).vote(proposalId);
+      expect ( (await dao.proposals(proposalId)).votesFor).to.equal(2);
+      await dao.connect(bob).vote(proposalId);
+      expect ( (await dao.proposals(proposalId)).votesFor).to.equal(3);
+      await dao.connect(cindy).vote(proposalId);
+      expect ( (await dao.proposals(proposalId)).votesFor).to.equal(4);
     });
 
-    // it("Does not allow a member to vote twice on a proposal", async() => {
-    //   await dao.propose(targets, values, calldatas, desc);  
-    //   await dao.connect(alice).vote(proposalId1);
-    //   await expect(dao.connect(alice).vote(proposalId1)).to.revertedWith("Already voted");
-    // });
+    it("Does not allow a member to vote twice on a proposal", async() => {
+      const txReceiptUnresolved = await dao.propose(targets, values, calldatas, desc);
+      let { events } = await txReceiptUnresolved.wait();
+      // @ts-ignore
+      const proposalId = events[0].args[0];
+      await dao.connect(alice).vote(proposalId);
+      await expect(dao.connect(alice).vote(proposalId)).to.revertedWith("Already voted");
+    });
 
-    // it("Does not allow non-members to vote or create proposals", async() => {
-    //   await dao.propose(targets, values, calldatas, desc);
-    //   await expect(dao.connect(a).vote(proposalId1)).to.revertedWith("Not a member");
-    //   await expect(dao.connect(b).propose(targets, values, calldatas, desc)).to.revertedWith("Not a member");
-    // });
+    it("Does not allow non-members to vote or create proposals", async() => {
+      const txReceiptUnresolved = await dao.propose(targets, values, calldatas, desc);
+      let { events } = await txReceiptUnresolved.wait();
+      // @ts-ignore
+      const proposalId = events[0].args[0];
 
-    // it("Does not allow proposals to be created with unequal or empty array sizes", async() => {
-    //   await expect(dao.propose(targets, [], calldatas, desc)).to.revertedWith("Invalid proposal length");
-    //   await expect(dao.propose([], [], [], desc)).to.revertedWith("Empty proposal");
-    // });
+      await expect(dao.connect(a).vote(proposalId)).to.revertedWith("Not a member");
+      await expect(dao.connect(b).propose(targets, values, calldatas, desc)).to.revertedWith("Not a member");
+    });
 
-    // it("Does not allow non-proposed proposals to be voted on", async() => {
-    //   await expect(dao.connect(alice).vote(proposalId1)).to.revertedWith("Not proposed");
-    // });
+    it("Does not allow proposals to be created with unequal or empty array sizes", async() => {
+      await expect(dao.propose(targets, [], calldatas, desc)).to.revertedWith("Invalid proposal length");
+      await expect(dao.propose([], [], [], desc)).to.revertedWith("Empty proposal");
+    });
+
+    it("Does not allow non-proposed proposals to be voted on", async() => {
+      await expect(dao.connect(alice).vote("0")).to.revertedWith("Not proposed");
+    });
 
 
-    describe("Execute", async() => {
+    describe.only("Execute", async() => {
+
+      let proposalId: any;
+
+      beforeEach(async() => {
+        const txReceiptUnresolved = await dao.propose(targets, values, calldatas, desc);
+        let { events } = await txReceiptUnresolved.wait();
+        // @ts-ignore
+        proposalId = events[0].args[0];
+      })
 
       it("Does not allow non-proposed proposals to be executed", async() => {
-        await expect(dao.connect(alice).execute(proposalId1, targets, values, calldatas, desc)).to.revertedWith("Not proposed");
+        await expect(dao.connect(alice).execute(targets, values, calldatas, desc2)).to.revertedWith("Not proposed");
       });
 
       it("Does not allow proposals with < 25% of members voting for to be executed", async() => {
-        // await dao.propose(targets, values, calldatas, desc);
-        // await expect(dao.execute(proposalId1, targets, values, calldatas, desc)).to.revertedWith("Quorum not reached");
-        // await dao.connect(alice).vote(proposalId1);
-        // await expect(dao.execute(proposalId1, targets, values, calldatas, desc)).to.revertedWith("Quorum not reached");
+        await expect(dao.execute(targets, values, calldatas, desc)).to.revertedWith("Quorum not reached");
+        await dao.connect(alice).vote(proposalId);
+        await expect(dao.execute(targets, values, calldatas, desc)).to.revertedWith("Quorum not reached");
       });
-      // it("Allows proposals with 25% of members voting for to be executed", async() => {
-      //   await dao.propose(targets, values, calldatas, desc);
-      //   await dao.connect(alice).vote(zzz);
-      //   await dao.connect(bob).vote(zzz);
-      //   await dao.execute(zzz, targets, values, calldatas, desc);
-      // });
+      it.only("Allows proposals with 25% of members voting for to be executed", async() => {
+        await dao.connect(alice).vote(proposalId);
+        await dao.connect(bob).vote(proposalId);
+        console.log(nft.address)
+        //await dao.execute(targets, values, calldatas, desc);
+      });
 
       //it("Does not allow proposals to be executed multiple times", async() => {
 
