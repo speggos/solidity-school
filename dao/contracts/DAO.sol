@@ -154,7 +154,7 @@ contract DAO {
         require (memberCount / (proposal.votesFor + proposal.votesAgainst) < 100 / QUORUM_PERCENT, "Quorum not reached");
         require (proposal.votesFor > proposal.votesAgainst, "Majority voted against");
         require (proposalId == hashProposal(targets, values, calldatas, keccak256(bytes(description))), "Targets/Values/Calldata incorrect");
-        
+    console.log(proposal.votesFor, proposal.votesAgainst);
         for (uint i=0; i<targets.length; i++) {
             (bool success, bytes memory returnData) = targets[i].call{value: values[i]}(calldatas[i]);
             console.logBytes(returnData);

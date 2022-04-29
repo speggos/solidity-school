@@ -201,10 +201,16 @@ describe("DAO", async () => {
         await expect(dao.connect(alice).execute(targets, values, calldatas, desc2)).to.revertedWith("Not proposed");
       });
 
-      it("Does not allow proposals with < 25% of members voting for to be executed", async() => {
+      it("Does not allow proposals with < 25% of members or majority against to be executed", async() => {
         await expect(dao.execute(targets, values, calldatas, desc)).to.revertedWith("Quorum not reached");
-        await dao.connect(alice).vote(proposalId, true);
+        await dao.connect(alice).vote(proposalId, false);
         await expect(dao.execute(targets, values, calldatas, desc)).to.revertedWith("Quorum not reached");
+        await dao.connect(bob).vote(proposalId, false);
+        await expect(dao.execute(targets, values, calldatas, desc)).to.revertedWith("Majority voted against");
+        await dao.connect(cindy).vote(proposalId, true);
+        await expect(dao.execute(targets, values, calldatas, desc)).to.revertedWith("Majority voted against");
+        await dao.connect(c).vote(proposalId, false);
+        await expect(dao.execute(targets, values, calldatas, desc)).to.revertedWith("Majority voted against");
       });
       
       it("Allows proposals with 25% of members voting for to be executed", async() => {
