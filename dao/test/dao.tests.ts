@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { Address } from "cluster";
 import { BigNumber, Signer } from "ethers";
 import { Interface } from "ethers/lib/utils";
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 import { DAO, DAO__factory } from "../typechain";
 import { NftMarketplace__factory } from "../typechain/factories/NftMarketplace__factory";
 import { NftMarketplace } from "../typechain/NftMarketplace";
@@ -15,7 +15,7 @@ function toEther(val: number) {
 }
 
 const NFTID = 123;
-const NFTPrice = toEther(42);
+const NFT_PRICE = toEther(0.42);
 
 describe("DAO", async () => {
   let DAO: DAO__factory;
@@ -100,7 +100,7 @@ describe("DAO", async () => {
       await dao.connect(f).buyMembership({value: toEther(1)});
 
       targets = [nft.address];
-      values = [toEther(42)];
+      values = [NFT_PRICE];
       desc = "Description1";
       desc2 = "Description2";
 
@@ -181,9 +181,25 @@ describe("DAO", async () => {
       await expect(dao.propose([], [], [], desc)).to.revertedWith("Empty proposal");
     });
 
+    it("Does not allow voting on proposals past the deadline", async() => {
+      const txReceiptUnresolved = await dao.propose(targets, values, calldatas, desc);
+      let { events } = await txReceiptUnresolved.wait();
+      // @ts-ignore
+      const proposalId = events[0].args[0];
+
+      await network.provider.send("evm_increaseTime", [1*60*60*24*8]);
+      await network.provider.send("evm_mine");
+      await expect(dao.vote(proposalId, true)).to.revertedWith('Past deadline');
+    });
+
     it("Does not allow non-proposed proposals to be voted on", async() => {
       await expect(dao.connect(alice).vote("0", true)).to.revertedWith("Not proposed");
     });
+
+    it("Does not allow proposals with >100ETH bids to be proposed", async() => {
+      await expect(dao.connect(alice).propose(targets, [toEther(100)], calldatas, desc)).to.revertedWith("Max bid 100ETH");
+      await expect(dao.connect(alice).propose(targets, [toEther(200)], calldatas, desc)).to.revertedWith("Max bid 100ETH");
+    })
 
 
     describe("Execute", async() => {
@@ -195,6 +211,9 @@ describe("DAO", async () => {
         let { events } = await txReceiptUnresolved.wait();
         // @ts-ignore
         proposalId = events[0].args[0];
+
+        await network.provider.send("evm_increaseTime", [1*60*60*24*5]);
+        await network.provider.send("evm_mine");
       })
 
       it("Does not allow non-proposed proposals to be executed", async() => {
@@ -216,16 +235,37 @@ describe("DAO", async () => {
       it("Allows proposals with 25% of members voting for to be executed", async() => {
         await dao.connect(alice).vote(proposalId, true);
         await dao.connect(bob).vote(proposalId, true);
-        //await dao.execute(targets, values, calldatas, desc);
+        await dao.execute(targets, values, calldatas, desc);
       });
 
-      //it("Does not allow proposals to be executed multiple times", async() => {
+      it("Does not allow proposals to be executed multiple times", async() => {
+        await dao.connect(alice).vote(proposalId, true);
+        await dao.connect(bob).vote(proposalId, false);
+        await dao.execute(targets, values, calldatas, desc);
+        await expect(dao.execute(targets, values, calldatas, desc)).to.revertedWith("Proposal already executed");
+      });
 
-     // })
+      it("Emits an event when executing", async() => {
+        await dao.connect(alice).vote(proposalId, true);
+        await dao.connect(bob).vote(proposalId, false);
+        await expect(await dao.execute(targets, values, calldatas, desc)).to.emit(dao, "ProposalExecuted");
+      });
 
-     //it("Emits an event when executing")
-    })
+      // @Anthony will appreciate this test
+      it("Does not allow spending more funds than in the contract", async() => {
+        const txReceiptUnresolved = await dao.propose(targets, [toEther(95)], calldatas, desc);
+        let { events } = await txReceiptUnresolved.wait();
+        // @ts-ignore
+        proposalId = events[0].args[0];
+        await dao.connect(alice).vote(proposalId, true);
+        await dao.connect(bob).vote(proposalId, false);
 
+        await network.provider.send("evm_increaseTime", [1*60*60*24*8]);
+        await network.provider.send("evm_mine");
+        
+        await expect(dao.execute(targets, [toEther(95)], calldatas, desc)).to.revertedWith("Insufficient ETH");
+      });
+    });
 
   });
 });

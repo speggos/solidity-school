@@ -5,8 +5,12 @@ import "hardhat/console.sol";
 
 contract DAO {
 
+    uint8 constant QUORUM_PERCENT = 25;
+    uint constant MAX_PRICE = 100 ether;
+    uint constant MAX_VOTE_DURATION = 7 days;
+    uint constant MIN_EXECUTION_DURATION = 4 days;
     uint public memberCount = 0;
-    uint constant QUORUM_PERCENT = 25;
+
 
     mapping (address => bool) public members;
     mapping (uint => Proposal) public proposals;
@@ -20,6 +24,7 @@ contract DAO {
         bool executed;
         uint32 votesFor;
         uint32 votesAgainst;
+        uint createdAt;
         mapping(address => bool) votes;
     }
 
@@ -28,8 +33,14 @@ contract DAO {
         _;
     }
 
-    modifier notExecuted(uint proposalId) {
+    modifier canBeVotedOn(uint proposalId) {
+        require(proposals[proposalId].votesFor != 0, "Not proposed");
+        require(block.timestamp < proposals[proposalId].createdAt + MAX_VOTE_DURATION, "Past deadline");
         require(!proposals[proposalId].executed, "Already executed");
+        _;
+    }
+
+    modifier notPastDeadline(uint proposalId) {
         _;
     }
 
@@ -77,7 +88,7 @@ contract DAO {
         return string(buffer);
     }
 
-    function batchVoteWithSigs(uint proposalId, address[] calldata addresses, bytes[] calldata sigs) notExecuted(proposalId) external {
+    function batchVoteWithSigs(uint proposalId, address[] calldata addresses, bytes[] calldata sigs) canBeVotedOn(proposalId) external {
         Proposal storage proposal = proposals[proposalId];
                         
         require (sigs.length == addresses.length, "Bytes.length != Addresses.length");
@@ -97,10 +108,8 @@ contract DAO {
         }
     }
 
-    function vote(uint proposalId, bool support) external onlyMembers() notExecuted(proposalId) {
+    function vote(uint proposalId, bool support) external onlyMembers() canBeVotedOn(proposalId) {
         Proposal storage proposal = proposals[proposalId];
-
-        require(proposal.votesFor != 0, "Not proposed");
         require(!proposal.votes[msg.sender], "Already voted");
 
         emit Vote(proposalId, msg.sender);
@@ -113,14 +122,18 @@ contract DAO {
     }
 
     function propose(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        string memory description
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas,
+        string calldata description
     ) external onlyMembers() returns (uint) {
         require(targets.length == values.length, "Invalid proposal length");
         require(targets.length == calldatas.length, "Invalid proposal length");
         require(targets.length > 0, "Empty proposal");
+
+        for(uint i=0; i<values.length; i++) {
+            require(values[i] < MAX_PRICE, "Max bid 100ETH");
+        }
 
         uint proposalId = hashProposal(targets, values, calldatas, keccak256(bytes(description)));
         Proposal storage proposal = proposals[proposalId];
@@ -128,7 +141,7 @@ contract DAO {
         emit ProposalCreated(proposalId, msg.sender, targets, values, calldatas, description);
         proposal.votes[msg.sender] = true;
         proposal.votesFor++;
-
+        proposal.createdAt = block.timestamp;
         return proposalId;
     }
 
@@ -149,15 +162,16 @@ contract DAO {
     ) external {
         uint proposalId = hashProposal(targets, values, calldatas, keccak256(bytes(description)));
         Proposal storage proposal = proposals[proposalId];
+        require(block.timestamp > proposal.createdAt + MIN_EXECUTION_DURATION, "Must wait >=4 days");
         require(proposal.votesFor > 0, "Not proposed");
-        require (!proposal.executed, "Proposal already executed");
-        require (memberCount / (proposal.votesFor + proposal.votesAgainst) < 100 / QUORUM_PERCENT, "Quorum not reached");
-        require (proposal.votesFor > proposal.votesAgainst, "Majority voted against");
-        require (proposalId == hashProposal(targets, values, calldatas, keccak256(bytes(description))), "Targets/Values/Calldata incorrect");
-    console.log(proposal.votesFor, proposal.votesAgainst);
+        require(!proposal.executed, "Proposal already executed");
+        require(memberCount / (proposal.votesFor + proposal.votesAgainst) < 100 / QUORUM_PERCENT, "Quorum not reached");
+        require(proposal.votesFor > proposal.votesAgainst, "Majority voted against");
+        require(proposalId == hashProposal(targets, values, calldatas, keccak256(bytes(description))), "Targets/Values/Calldata incorrect");
         for (uint i=0; i<targets.length; i++) {
-            (bool success, bytes memory returnData) = targets[i].call{value: values[i]}(calldatas[i]);
-            console.logBytes(returnData);
+            require(values[i] < MAX_PRICE, "Max value 100ETH");
+            require(values[i] < address(this).balance, "Insufficient ETH");
+            (bool success, ) = targets[i].call{value: values[i]}(calldatas[i]);
             require(success, "Call failed");
         }
 
