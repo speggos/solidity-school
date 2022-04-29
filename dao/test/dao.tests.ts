@@ -105,7 +105,7 @@ describe("DAO", async () => {
       desc2 = "Description2";
 
       const callVars = ethers.utils.defaultAbiCoder.encode(["uint256"], [NFTID]);
-      calldatas = [nftInterface.encodeFunctionData("buy", [callVars])];
+      calldatas = [nftInterface.encodeFunctionData("buy(uint256)", [callVars])];
     });
 
     it("Allows multiple proposals to be created and voted on", async() => {
@@ -115,7 +115,7 @@ describe("DAO", async () => {
       const proposalId1 = events[0].args[0];
 
       expect ( (await dao.proposals(proposalId1)).votesFor).to.equal(1);
-      await dao.connect(alice).vote(proposalId1);
+      await dao.connect(alice).vote(proposalId1, true);
       expect ( (await dao.proposals(proposalId1)).votesFor).to.equal(2);
 
       const txReceiptUnresolved2 = await dao.propose(targets, values, calldatas, desc2);
@@ -124,7 +124,7 @@ describe("DAO", async () => {
       const proposalId2 = tx2.events[0].args[0];
 
       expect ( (await dao.proposals(proposalId2)).votesFor).to.equal(1);
-      await dao.connect(alice).vote(proposalId2);
+      await dao.connect(alice).vote(proposalId2, true);
       expect ( (await dao.proposals(proposalId2)).votesFor).to.equal(2);
 
     });
@@ -145,12 +145,16 @@ describe("DAO", async () => {
       const proposalId = events[0].args[0];
 
       expect ( (await dao.proposals(proposalId)).votesFor).to.equal(1);
-      await dao.connect(alice).vote(proposalId);
+      await dao.connect(alice).vote(proposalId, true);
       expect ( (await dao.proposals(proposalId)).votesFor).to.equal(2);
-      await dao.connect(bob).vote(proposalId);
+      await dao.connect(bob).vote(proposalId, true);
       expect ( (await dao.proposals(proposalId)).votesFor).to.equal(3);
-      await dao.connect(cindy).vote(proposalId);
+      await dao.connect(cindy).vote(proposalId, true);
       expect ( (await dao.proposals(proposalId)).votesFor).to.equal(4);
+      expect ( (await dao.proposals(proposalId)).votesAgainst).to.equal(0);
+      await dao.connect(c).vote(proposalId, false);
+      expect ( (await dao.proposals(proposalId)).votesAgainst).to.equal(1);
+
     });
 
     it("Does not allow a member to vote twice on a proposal", async() => {
@@ -158,8 +162,8 @@ describe("DAO", async () => {
       let { events } = await txReceiptUnresolved.wait();
       // @ts-ignore
       const proposalId = events[0].args[0];
-      await dao.connect(alice).vote(proposalId);
-      await expect(dao.connect(alice).vote(proposalId)).to.revertedWith("Already voted");
+      await dao.connect(alice).vote(proposalId, true);
+      await expect(dao.connect(alice).vote(proposalId, false)).to.revertedWith("Already voted");
     });
 
     it("Does not allow non-members to vote or create proposals", async() => {
@@ -168,7 +172,7 @@ describe("DAO", async () => {
       // @ts-ignore
       const proposalId = events[0].args[0];
 
-      await expect(dao.connect(a).vote(proposalId)).to.revertedWith("Not a member");
+      await expect(dao.connect(a).vote(proposalId, true)).to.revertedWith("Not a member");
       await expect(dao.connect(b).propose(targets, values, calldatas, desc)).to.revertedWith("Not a member");
     });
 
@@ -178,11 +182,11 @@ describe("DAO", async () => {
     });
 
     it("Does not allow non-proposed proposals to be voted on", async() => {
-      await expect(dao.connect(alice).vote("0")).to.revertedWith("Not proposed");
+      await expect(dao.connect(alice).vote("0", true)).to.revertedWith("Not proposed");
     });
 
 
-    describe.only("Execute", async() => {
+    describe("Execute", async() => {
 
       let proposalId: any;
 
@@ -199,13 +203,13 @@ describe("DAO", async () => {
 
       it("Does not allow proposals with < 25% of members voting for to be executed", async() => {
         await expect(dao.execute(targets, values, calldatas, desc)).to.revertedWith("Quorum not reached");
-        await dao.connect(alice).vote(proposalId);
+        await dao.connect(alice).vote(proposalId, true);
         await expect(dao.execute(targets, values, calldatas, desc)).to.revertedWith("Quorum not reached");
       });
-      it.only("Allows proposals with 25% of members voting for to be executed", async() => {
-        await dao.connect(alice).vote(proposalId);
-        await dao.connect(bob).vote(proposalId);
-        console.log(nft.address)
+      
+      it("Allows proposals with 25% of members voting for to be executed", async() => {
+        await dao.connect(alice).vote(proposalId, true);
+        await dao.connect(bob).vote(proposalId, true);
         //await dao.execute(targets, values, calldatas, desc);
       });
 
@@ -213,7 +217,7 @@ describe("DAO", async () => {
 
      // })
 
-     //it("Emits an event")
+     //it("Emits an event when executing")
     })
 
 

@@ -19,6 +19,7 @@ contract DAO {
     struct Proposal {
         bool executed;
         uint32 votesFor;
+        uint32 votesAgainst;
         mapping(address => bool) votes;
     }
 
@@ -96,14 +97,19 @@ contract DAO {
         }
     }
 
-    function vote(uint proposalId) external onlyMembers() notExecuted(proposalId) {
+    function vote(uint proposalId, bool support) external onlyMembers() notExecuted(proposalId) {
         Proposal storage proposal = proposals[proposalId];
 
+        require(proposal.votesFor != 0, "Not proposed");
         require(!proposal.votes[msg.sender], "Already voted");
 
         emit Vote(proposalId, msg.sender);
-        proposal.votesFor++;
         proposal.votes[msg.sender] = true;
+        if (support) {
+            proposal.votesFor++;
+        } else {
+            proposal.votesAgainst++;
+        }
     }
 
     function propose(
@@ -119,7 +125,6 @@ contract DAO {
         uint proposalId = hashProposal(targets, values, calldatas, keccak256(bytes(description)));
         Proposal storage proposal = proposals[proposalId];
         require(proposal.votesFor == 0, "Proposal already exists");
-
         emit ProposalCreated(proposalId, msg.sender, targets, values, calldatas, description);
         proposal.votes[msg.sender] = true;
         proposal.votesFor++;
@@ -144,13 +149,15 @@ contract DAO {
     ) external {
         uint proposalId = hashProposal(targets, values, calldatas, keccak256(bytes(description)));
         Proposal storage proposal = proposals[proposalId];
-        require(proposals[proposalId].votesFor > 0, "Not proposed");
+        require(proposal.votesFor > 0, "Not proposed");
         require (!proposal.executed, "Proposal already executed");
-        require (memberCount / proposal.votesFor < 100 / QUORUM_PERCENT, "Quorum not reached");
+        require (memberCount / (proposal.votesFor + proposal.votesAgainst) < 100 / QUORUM_PERCENT, "Quorum not reached");
+        require (proposal.votesFor > proposal.votesAgainst, "Majority voted against");
         require (proposalId == hashProposal(targets, values, calldatas, keccak256(bytes(description))), "Targets/Values/Calldata incorrect");
         
         for (uint i=0; i<targets.length; i++) {
-            (bool success,) = targets[i].call{value: values[i]}(calldatas[i]);
+            (bool success, bytes memory returnData) = targets[i].call{value: values[i]}(calldatas[i]);
+            console.logBytes(returnData);
             require(success, "Call failed");
         }
 

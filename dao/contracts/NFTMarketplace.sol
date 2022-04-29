@@ -17,6 +17,7 @@ contract NftMarketplace {
 
     // function buy(address nftContract, uint256 nftId)
     function buy(uint256 nftId) external payable {
+        console.log('here');
         console.log(nftId);
         purchasedNFTs[nftId] = true;
     }
