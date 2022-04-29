@@ -1,3 +1,6 @@
+** Note **
+- Did not complete the batch signature voting feature. I got close, but it was a doozie
+
 # Voting system description
 
 The voting system is fairly simple, fulfiling specs with little extra functionality added
