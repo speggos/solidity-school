@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "hardhat/console.sol";
+import "./Router.sol";
 
 contract ICO {
 
@@ -26,7 +27,7 @@ contract ICO {
     bool public paused = false;
     address owner;
     address tokenContract;
-    address lpPool;
+    address router;
 
     event Invested(address, uint);
     event Pause(bool);
@@ -38,15 +39,11 @@ contract ICO {
         _;
     }
 
-    constructor(address _tokenContract, address _lpPool) {
+    constructor(address _tokenContract, address _router) {
         require(_tokenContract != address(0), "Token contract not set");
         owner = msg.sender;
         tokenContract = _tokenContract;
-        lpPool = _lpPool;
-    }
-
-    function addToLpPool() external onlyOwner {
-        // Do stuff
+        router = _router;
     }
 
     function progressPhase() public onlyOwner {
@@ -107,11 +104,14 @@ contract ICO {
         paused = _val;
     }
 
-    function addToLpPool(address pool) external onlyOwner {
+    function addToLpPool() external onlyOwner {
+
         uint ethBalance = address(this).balance;
         uint spcToSend = ethBalance * SPC_PER_ETH;
 
-        // (bool success, ) = lpPool.call(abi.encodeWithSignature("claimFromICO(address,uint256)",msg.sender,invested*SPC_PER_ETH));
-        // require (success, "Mint unsuccessful");
+        // TODO these 2 lines could probably be done in 1 call
+        SpaceToken(tokenContract).claimFromICO(address(this), spcToSend);
+        SpaceToken(tokenContract).approve(router, spcToSend);
+        Router(router).addLiquidity{value: ethBalance}(spcToSend);
     }
 }

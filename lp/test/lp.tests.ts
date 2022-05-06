@@ -10,6 +10,20 @@ function toEther(n: number) {
   return ethers.utils.parseEther( n.toString() );
 }
 
+const ONE = ethers.BigNumber.from(1);
+const TWO = ethers.BigNumber.from(2);
+/// @dev Calculate square root
+function sqrt(value: BigNumber) {
+  let x = ethers.BigNumber.from(value);
+  let z = x.add(ONE).div(TWO);
+  let y = x;
+  while (z.sub(y).isNegative()) {
+      y = z;
+      z = x.div(z).add(z).div(TWO);
+  }
+  return y;
+}
+
 describe("ICO Assignment", function () {
 
   let ICO: ICO__factory
@@ -54,15 +68,16 @@ describe("ICO Assignment", function () {
 
     pool.setRouter(router.address);
   });
-
-  describe("Withdraw", async() => {
+  describe("General Tests", async() => {
+    beforeEach(async() => {
+      await ico.progressPhase();
+      await ico.progressPhase();
+      await ico.connect(a).invest({value: toEther(30000)});
+      await spc.setICOContract(ico.address);
+    }); 
     it("Deploys a contract", async() => {
-      expect(await spc.icoContract()).to.equal(ethers.constants.AddressZero);
-      await spc.setICOContract(ico.address);  
       expect(await spc.icoContract()).to.equal(ico.address);
     });
-
-  describe.only("General Tests", async() => {
     it("Updates balances when tokens/eth are transferred", async() => {
       expect(await provider.getBalance(pool.address)).to.equal(0);
       expect(await spc.balanceOf(pool.address)).to.equal(0);
@@ -89,7 +104,58 @@ describe("ICO Assignment", function () {
       expect(await pool.ethBalance()).to.equal(toEther(1.1));
       expect(await pool.spcBalance()).to.equal(toEther(2.2));
     });
+    it("Allows ICO funds to be added to the LP pool by deployer", async() => {
+      await expect(ico.addToLpPool()).to.be.ok;
+      expect(await pool.balanceOf(ico.address)).to.equal( sqrt(toEther(30000).mul(toEther(150000))));
+    });
   });
 
+  describe("Add Liquidity", async() => {
+    beforeEach(async () => {
+      await spc.approve(await router.address, ethers.constants.MaxInt256);
+      await spc.connect(alice).approve(await router.address, ethers.constants.MaxInt256);
+      
+      await spc.connect(treasury).transfer(deployer.address, toEther(1000))
+      await spc.connect(treasury).transfer(alice.address, toEther(1000))
+    })
+    it("Allows liquidity to be added", async() => {
+      expect(await pool.totalSupply()).to.equal(0);
+      await router.addLiquidity(toEther(5), {value: toEther(1)});
+      expect(await pool.totalSupply()).to.equal( sqrt(toEther(5).mul(toEther(1))));
+    });
+    it("Does not allow users to supply zero eth or spc", async() => {
+      await expect(router.addLiquidity(toEther(5),{value: 0})).to.revertedWith("Insufficient liquidity added");
+      await expect(router.addLiquidity(toEther(0),{value: 1})).to.revertedWith("Insufficient liquidity added");
+      await expect(router.addLiquidity(toEther(0),{value: 0})).to.revertedWith("Insufficient liquidity added");
+    });
+    it("Calculates the correct liquidity to add with multiple add liquidity events", async() => {
+      await router.addLiquidity(toEther(5), {value: toEther(1)});
+      await router.addLiquidity(toEther(5), {value: toEther(1)});
+      expect(await pool.totalSupply()).to.equal( sqrt(toEther(10).mul(toEther(2))) );
+      await router.addLiquidity(toEther(1), {value: toEther(0.2)});
+      expect(await pool.totalSupply()).to.equal( sqrt(toEther(11).mul(toEther(2.2))).sub(1) );
+      await router.connect(alice).addLiquidity(toEther(1), {value: toEther(0.2)});
+      expect(await pool.totalSupply()).to.equal( sqrt(toEther(12).mul(toEther(2.4))).sub(1) );
+      expect(await pool.balanceOf(deployer.address)).to.equal(sqrt(toEther(11).mul(toEther(2.2))).sub(1));
+      expect(await pool.balanceOf(alice.address)).to.equal( sqrt(toEther(12).mul(toEther(2.4))).sub(sqrt(toEther(11).mul(toEther(2.2)))));
+    });
+    it("Gives the minimum number of tokens when user sends tokens in the incorrect ratio", async() => {
+      await router.addLiquidity(toEther(5), {value: toEther(1)});
+      await router.addLiquidity(toEther(10), {value: toEther(1)});
+      expect(await pool.totalSupply()).to.equal( sqrt(toEther(10).mul(toEther(2))));
+      await router.addLiquidity(toEther(7.5), {value: toEther(5)});
+      expect(await pool.totalSupply()).to.equal( sqrt(toEther(15).mul(toEther(3))).sub(1));
+    });
+    it("Gives the correct number of LP Tokens to multiple users", async() => {
+      await router.addLiquidity(toEther(5), {value: toEther(1)});
+      await router.connect(alice).addLiquidity(toEther(5), {value: toEther(1)});
+      expect(await pool.balanceOf(deployer.address)).to.equal(sqrt(toEther(5).mul(toEther(1))));
+      expect(await pool.balanceOf(alice.address)).to.equal(sqrt(toEther(5).mul(toEther(1))));
+      await router.connect(alice).addLiquidity(toEther(5), {value: toEther(1)});
+      expect(await pool.balanceOf(alice.address)).to.equal(sqrt(toEther(10).mul(toEther(2))));
+    });
+    it("Emits a LiquidityAdded event", async() => {
+      expect(await router.addLiquidity(toEther(5), {value: toEther(1)})).to.emit(router, "LiquidityAdded");
+    });
   });
 });

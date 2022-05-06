@@ -26,12 +26,21 @@ contract Pool is ERC20 {
 
     function setRouter(address _router) external {
         require(msg.sender == owner, "Not owner");
+        SpaceToken(spc).approve(_router, 2**256-1);
         router = _router;
     }
 
     function updateBalances() public {
         ethBalance = address(this).balance;
         spcBalance = SpaceToken(spc).balanceOf(address(this));
+    }
+
+    function mintTokens(address to, uint amount) payable external onlyRouter {
+        _mint(to, amount);
+    }
+
+    function burnTokens(address from, uint amount) payable external onlyRouter {
+        _burn(from, amount);
     }
 
     //TODO remove after making another external function
