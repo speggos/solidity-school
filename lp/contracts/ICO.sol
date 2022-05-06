@@ -26,6 +26,7 @@ contract ICO {
     bool public paused = false;
     address owner;
     address tokenContract;
+    address lpPool;
 
     event Invested(address, uint);
     event Pause(bool);
@@ -37,10 +38,11 @@ contract ICO {
         _;
     }
 
-    constructor(address _tokenContract) {
+    constructor(address _tokenContract, address _lpPool) {
         require(_tokenContract != address(0), "Token contract not set");
         owner = msg.sender;
         tokenContract = _tokenContract;
+        lpPool = _lpPool;
     }
 
     function addToLpPool() external onlyOwner {
@@ -103,5 +105,13 @@ contract ICO {
     function setPause(bool _val) public onlyOwner {
         emit Pause(_val);
         paused = _val;
+    }
+
+    function addToLpPool(address pool) external onlyOwner {
+        uint ethBalance = address(this).balance;
+        uint spcToSend = ethBalance * SPC_PER_ETH;
+
+        // (bool success, ) = lpPool.call(abi.encodeWithSignature("claimFromICO(address,uint256)",msg.sender,invested*SPC_PER_ETH));
+        // require (success, "Mint unsuccessful");
     }
 }
