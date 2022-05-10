@@ -4,27 +4,28 @@
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
 import { ethers } from "hardhat";
+import { SpaceToken } from "../typechain";
 
 async function main() {
-  // Hardhat always runs the compile task when running scripts with its command
-  // line interface.
-  //
-  // If this script is run directly using `node` you may want to call compile
-  // manually to make sure everything is compiled
-  // await hre.run('compile');
+  const [deployer] = await ethers.getSigners();
 
-  // We get the contract to deploy
-  const Greeter = await ethers.getContractFactory("Greeter");
-  const greeter = await Greeter.deploy("Hello, Hardhat!");
+  console.log("Deploying contracts with the account:", deployer.address);
 
-  await greeter.deployed();
+  console.log("Account balance:", (await deployer.getBalance()).toString());
 
-  console.log("Greeter deployed to:", greeter.address);
+  const Token = await ethers.getContractFactory("SpaceToken");
+  const token: SpaceToken = await Token.deploy('0x77E9ABa65D1C76F6c17dB182d53462CEb6726162');
+  await token.deployed();
+  console.log("Token address:", token.address);
+
+  const ICO = await ethers.getContractFactory("ICO");
+  const ico = await ICO.deploy(token.address);
+  await ico.deployed();
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
 });

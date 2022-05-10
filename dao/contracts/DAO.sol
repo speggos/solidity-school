@@ -165,6 +165,7 @@ contract DAO {
         require(block.timestamp > proposal.createdAt + MIN_EXECUTION_DURATION, "Must wait >=4 days");
         require(proposal.votesFor > 0, "Not proposed");
         require(!proposal.executed, "Proposal already executed");
+        proposal.executed = true;
         require(memberCount / (proposal.votesFor + proposal.votesAgainst) < 100 / QUORUM_PERCENT, "Quorum not reached");
         require(proposal.votesFor > proposal.votesAgainst, "Majority voted against");
         require(proposalId == hashProposal(targets, values, calldatas, keccak256(bytes(description))), "Targets/Values/Calldata incorrect");
@@ -177,7 +178,6 @@ contract DAO {
 
         emit ProposalExecuted(proposalId, msg.sender);
 
-        proposal.executed = true;
     }
 
     function buyMembership() external payable {
