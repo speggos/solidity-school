@@ -1,3 +1,20 @@
+# Design Exercise
+
+To add extra rewards to liquidity providers, we'd want to first make sure the amount of time and quantity of liquidity are recorded for the user. This can be accomplished in a few ways, I'll go through one on-chain, and one off-chain:
+1. On-chain:
+Create two mappings, address => pendingRewards, and address => Struct {uint timestampOfLastTransaction, uint liquidityAtLastTransaction}
+
+Then, whenever a user either removes some liquidity, or claims rewards, pendingRewards are distributed and reset to 0, timestampOfLastTransaction set to current block, and liquidityAtLastTransaction set to current liquidity of the address. This has some gas costs attached, but isn't too bad.
+
+2. Off-chain:
+We could simply store events emitted by the blockchain, and poll an oracle offchain which tallies user's liquidity and time providing liquidity. Then, when we need to get information about user's liquidity history, simply poll an oracle onchain to get the data
+
+Of the two solutions, I like the on-chain solution because it doesn't cost too much gas. It also keeps information paired together, and lets people audit all aspects of the code in one place.
+
+Then, we would need to add the distribution mechanism. We could create another ERC20 token which the router contract can interact with and mint for free to users. Based on time-weighted liquidity amounts by liquidity providers, we would have accurate numbers for how many tokens to distribute, based on some distribution schedule.
+
+
+
 # Advanced Sample Hardhat Project
 
 This project demonstrates an advanced Hardhat use case, integrating other tools commonly used alongside Hardhat in the ecosystem.
