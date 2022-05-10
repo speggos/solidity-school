@@ -7,9 +7,6 @@ import "./SpaceToken.sol";
 
 contract Pool is ERC20 {
 
-    uint public ethBalance;
-    uint public spcBalance;
-
     address public router;
     address immutable owner;
     address immutable spc;
@@ -30,20 +27,20 @@ contract Pool is ERC20 {
         router = _router;
     }
 
-    function updateBalances() public {
-        ethBalance = address(this).balance;
-        spcBalance = SpaceToken(spc).balanceOf(address(this));
-    }
-
     function mintTokens(address to, uint amount) payable external onlyRouter {
         _mint(to, amount);
     }
 
-    function burnTokens(address from, uint amount) payable external onlyRouter {
+    function burnTokens(address from, uint amount, uint ethToReturn) external onlyRouter {
         _burn(from, amount);
+        (bool success, ) = from.call{value: ethToReturn}("");
+        require (success, "BurnTokens failed to send");
     }
 
-    //TODO remove after making another external function
-    receive() external payable {}
+    function returnEther(address to, uint amount) external onlyRouter {
+        (bool success, ) = to.call{value: amount}("");
+        require (success, "ReturnEther failed to send");
+    }
 
+    receive() external payable {}
 }

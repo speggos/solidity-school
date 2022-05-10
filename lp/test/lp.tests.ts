@@ -67,6 +67,9 @@ describe("ICO Assignment", function () {
     await ico.deployed()
 
     pool.setRouter(router.address);
+    await spc.approve(await router.address, ethers.constants.MaxInt256);
+    await spc.connect(alice).approve(await router.address, ethers.constants.MaxInt256);
+
   });
   describe("General Tests", async() => {
     beforeEach(async() => {
@@ -78,50 +81,51 @@ describe("ICO Assignment", function () {
     it("Deploys a contract", async() => {
       expect(await spc.icoContract()).to.equal(ico.address);
     });
-    it("Updates balances when tokens/eth are transferred", async() => {
-      expect(await provider.getBalance(pool.address)).to.equal(0);
-      expect(await spc.balanceOf(pool.address)).to.equal(0);
-      expect(await pool.ethBalance()).to.equal(0);
-      expect(await pool.spcBalance()).to.equal(0);
+    // it("Updates balances when tokens/eth are transferred", async() => {
+    //   expect(await provider.getBalance(pool.address)).to.equal(0);
+    //   expect(await spc.balanceOf(pool.address)).to.equal(0);
+    //   expect(await pool.ethBalance()).to.equal(0);
+    //   expect(await pool.spcBalance()).to.equal(0);
 
-      await alice.sendTransaction({value: toEther(1), to: await pool.address});
-      await spc.connect(treasury).transfer(pool.address, toEther(2));
+    //   await alice.sendTransaction({value: toEther(1), to: await pool.address});
+    //   await spc.connect(treasury).transfer(pool.address, toEther(2));
 
-      expect(await provider.getBalance(pool.address)).to.equal(toEther(1));
-      expect(await spc.balanceOf(pool.address)).to.equal(toEther(2));
-      expect(await pool.ethBalance()).to.equal(0);
-      expect(await pool.spcBalance()).to.equal(0);
+    //   expect(await provider.getBalance(pool.address)).to.equal(toEther(1));
+    //   expect(await spc.balanceOf(pool.address)).to.equal(toEther(2));
+    //   expect(await pool.ethBalance()).to.equal(0);
+    //   expect(await pool.spcBalance()).to.equal(0);
 
-      await pool.updateBalances();
+    //   await pool.updateBalances();
 
-      expect(await pool.ethBalance()).to.equal(toEther(1));
-      expect(await pool.spcBalance()).to.equal(toEther(2));
+    //   expect(await pool.ethBalance()).to.equal(toEther(1));
+    //   expect(await pool.spcBalance()).to.equal(toEther(2));
 
-      await alice.sendTransaction({value: toEther(0.1), to: await pool.address});
-      await spc.connect(treasury).transfer(pool.address, toEther(0.2));
-      await pool.updateBalances();
+    //   await alice.sendTransaction({value: toEther(0.1), to: await pool.address});
+    //   await spc.connect(treasury).transfer(pool.address, toEther(0.2));
+    //   await pool.updateBalances();
 
-      expect(await pool.ethBalance()).to.equal(toEther(1.1));
-      expect(await pool.spcBalance()).to.equal(toEther(2.2));
-    });
-    it("Allows ICO funds to be added to the LP pool by deployer", async() => {
-      await expect(ico.addToLpPool()).to.be.ok;
-      expect(await pool.balanceOf(ico.address)).to.equal( sqrt(toEther(30000).mul(toEther(150000))));
+    //   expect(await pool.ethBalance()).to.equal(toEther(1.1));
+    //   expect(await pool.spcBalance()).to.equal(toEther(2.2));
+    // });
+    it("Allows ICO funds to be withdrawn by deployer", async() => {
+      await expect(ico.withdrawIcoProceeds(ethers.constants.AddressZero)).to.be.ok;
+      expect(await provider.getBalance(ethers.constants.AddressZero)).to.equal(toEther(30000));
     });
   });
 
   describe("Add Liquidity", async() => {
     beforeEach(async () => {
-      await spc.approve(await router.address, ethers.constants.MaxInt256);
       await spc.connect(alice).approve(await router.address, ethers.constants.MaxInt256);
       
-      await spc.connect(treasury).transfer(deployer.address, toEther(1000))
-      await spc.connect(treasury).transfer(alice.address, toEther(1000))
+      await spc.connect(treasury).transfer(deployer.address, toEther(1000));
+      await spc.connect(treasury).transfer(alice.address, toEther(1000));
     })
     it("Allows liquidity to be added", async() => {
       expect(await pool.totalSupply()).to.equal(0);
       await router.addLiquidity(toEther(5), {value: toEther(1)});
       expect(await pool.totalSupply()).to.equal( sqrt(toEther(5).mul(toEther(1))));
+      expect(await spc.balanceOf(pool.address)).to.equal( toEther(5));
+      expect(await provider.getBalance(pool.address)).to.equal( toEther(1));
     });
     it("Does not allow users to supply zero eth or spc", async() => {
       await expect(router.addLiquidity(toEther(5),{value: 0})).to.revertedWith("Insufficient liquidity added");
@@ -158,4 +162,89 @@ describe("ICO Assignment", function () {
       expect(await router.addLiquidity(toEther(5), {value: toEther(1)})).to.emit(router, "LiquidityAdded");
     });
   });
+  describe("RemoveLiquidity", async() => {
+    beforeEach(async() => {
+      await spc.connect(alice).approve(await router.address, ethers.constants.MaxInt256);
+      
+      await spc.connect(treasury).transfer(deployer.address, toEther(1000));
+      await spc.connect(treasury).transfer(alice.address, toEther(1000));
+      expect(await pool.totalSupply()).to.equal(0);
+      await router.connect(alice).addLiquidity(toEther(10), {value: toEther(2)});
+      expect(await pool.balanceOf(alice.address)).to.equal(sqrt(toEther(10).mul(toEther(2))));
+    });
+    it("Withdraws the correct amount of liquidity", async() => {
+      await router.connect(alice).removeLiquidity(sqrt(toEther(5).mul(toEther(1))));
+      expect(await pool.balanceOf(alice.address)).to.equal(sqrt(toEther(5).mul(toEther(1))));
+      expect(await pool.totalSupply()).to.equal(sqrt(toEther(5).mul(toEther(1))));
+      await router.connect(alice).removeLiquidity(sqrt(toEther(5).mul(toEther(1))));
+      expect(await pool.balanceOf(alice.address)).to.equal(0);
+      expect(await pool.totalSupply()).to.equal(0);
+    });
+    it("Does not allow non-lp holders to withdraw", async() => {
+      await expect(router.connect(bob).removeLiquidity(1)).to.revertedWith("ERC20: burn");
+    });
+    it("Does not allow users to withdraw 0", async() => {
+      await expect(router.connect(alice).removeLiquidity(0)).to.revertedWith("Must remove >0");
+    });
+    it("Withdraws the correct amount of funds when users brute force funds into the contract", async() => {
+      expect(await provider.getBalance(pool.address)).to.equal(toEther(2));
+      await bob.sendTransaction({to: pool.address, value: toEther(2)});
+      expect(await provider.getBalance(pool.address)).to.equal(toEther(4));
+      expect(await spc.balanceOf(pool.address)).to.equal(toEther(10));
+      await router.connect(alice).removeLiquidity( sqrt(toEther(5).mul(toEther(1))) );
+      expect(await provider.getBalance(pool.address)).to.equal(toEther(2));
+      expect(await spc.balanceOf(pool.address)).to.equal(toEther(5));    
+    });
+    it("Emits a LiquidityRemoved event", async() => {
+      expect(await router.addLiquidity(toEther(5), {value: toEther(1)})).to.emit(router, "LiquidityRemoved");
+    });
+    it("Returns the correct amount of ETH and SPC to the owner", async() => {
+      const aliceSpcBefore = await spc.balanceOf(alice.address);
+
+      await router.connect(alice).removeLiquidity(sqrt(toEther(5).mul(toEther(1))));
+      expect(await spc.balanceOf(pool.address)).to.equal( toEther(5));
+      expect(await provider.getBalance(pool.address)).to.equal( toEther(1));
+      expect(await spc.balanceOf(alice.address)).to.equal(aliceSpcBefore.add(toEther(5)));
+
+      await router.connect(alice).removeLiquidity(sqrt(toEther(5).mul(toEther(1))));
+      expect(await spc.balanceOf(pool.address)).to.equal( 0 );
+      expect(await provider.getBalance(pool.address)).to.equal( 0 );
+      expect(await spc.balanceOf(alice.address)).to.equal(aliceSpcBefore.add(toEther(10)));
+    });
+  });
+  describe.only("Swap", async() => {
+    const k: BigNumber = ethers.BigNumber.from(BigInt(2*10*Math.pow(10,37)));
+    beforeEach(async() => {            
+      await spc.connect(treasury).transfer(deployer.address, toEther(1000));
+      await spc.connect(treasury).transfer(alice.address, toEther(1000));
+
+      await expect(router.connect(alice).swap(toEther(10), 0)).to.revertedWith("No liquidity in pool");
+      await expect(router.connect(alice).swap(0, 0, {value: toEther(10)})).to.revertedWith("No liquidity in pool");
+
+      await router.addLiquidity(toEther(10), {value: toEther(2)});
+    });
+    it("Allows multiple swaps for SPC->ETH and ETH->SPC at the correct amount including tax", async() => {
+      const aliceSpcBefore = await spc.balanceOf(alice.address);
+      await router.connect(alice).swap(toEther(1), 0);
+
+      expect(await spc.balanceOf(alice.address)).to.equal(aliceSpcBefore.sub(toEther(1)));
+      expect(await spc.balanceOf(pool.address)).to.equal(toEther(11));
+      expect(await provider.getBalance(pool.address)).to.equal(ethers.BigNumber.from("1836547291092745638"));
+
+      await router.connect(alice).swap(0, 0, {value: toEther(0.2)});
+      const spcBack = ethers.BigNumber.from("980060320036873379");
+      expect(await spc.balanceOf(alice.address)).to.equal(aliceSpcBefore.sub(toEther(1)).add(spcBack));
+      expect(await spc.balanceOf(pool.address)).to.equal(toEther(11).sub(spcBack));
+      expect(await provider.getBalance(pool.address)).to.equal(ethers.BigNumber.from("1836547291092745638").add(toEther(0.2)));
+    });
+    it("Emits a swap event", async() => {
+      await expect(await router.connect(alice).swap(toEther(1), 0)).to.emit(pool, "Swapped");
+    });
+    it("Does not allow swapping ETH and SPC in the same transaction", async() => {
+      await expect(router.connect(alice).swap(toEther(1), toEther(0.01), {value: toEther(0.1)})).to.revertedWith("Must supply only spc OR eth");
+    });
+    it("Reverts transactions that are above slippage", async() => {
+      await expect( router.connect(alice).swap(toEther(10), toEther(2))).to.revertedWith("Too much slippage");
+    });
+  })
 });

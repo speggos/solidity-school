@@ -104,14 +104,9 @@ contract ICO {
         paused = _val;
     }
 
-    function addToLpPool() external onlyOwner {
-
+    function withdrawIcoProceeds(address recipient) external onlyOwner {
         uint ethBalance = address(this).balance;
-        uint spcToSend = ethBalance * SPC_PER_ETH;
-
-        // TODO these 2 lines could probably be done in 1 call
-        SpaceToken(tokenContract).claimFromICO(address(this), spcToSend);
-        SpaceToken(tokenContract).approve(router, spcToSend);
-        Router(router).addLiquidity{value: ethBalance}(spcToSend);
+        (bool success, ) = recipient.call{value: ethBalance}("");
+        require (success, "ICO: Error withdrawing proceeds");
     }
 }
