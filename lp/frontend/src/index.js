@@ -1,12 +1,20 @@
 import { ethers } from "ethers"
 import RouterJSON from '../../artifacts/contracts/Router.sol/Router.json'
+import PoolJSON from '../../artifacts/contracts/Pool.sol/Pool.json';
+import IcoJSON from '../../artifacts/contracts/ICO.sol/ICO.json';
 
 
 const provider = new ethers.providers.Web3Provider(window.ethereum)
 const signer = provider.getSigner()
 
-// const routerAddr = '0x422Db2b48c44c0A1Bf748f4bf304A8093b8F4eb6'
-// const contract = new ethers.Contract(routerAddr, RouterJSON.abi, provider);
+const routerAddr = '0x10066cd4724d1Cbe061F7573424fdcbDe12D4e2A'
+const contract = new ethers.Contract(routerAddr, RouterJSON.abi, provider);
+
+const poolAddr = '0xd3bB99Ca4b79e3CB46b2213e5d1EF352D7f32889';
+const poolContract = new ethers.Contract(poolAddr, PoolJSON.abi, provider);
+
+const icoAddr = '0xe5643B3291f483F5114091ccbF93CE96B86E2c9F';
+const icoContract = new ethers.Contract(poolAddr, IcoJSON.abi, provider);
 
 async function connectToMetamask() {
   try {
@@ -30,7 +38,7 @@ ico_spc_buy.addEventListener('submit', async e => {
   console.log("Buying", eth, "eth")
 
   await connectToMetamask()
-  // TODO: Call ico contract contribute function
+  await icoContract.connect(signer).invest({value: eth});
 })
 
 
@@ -60,7 +68,7 @@ lp_deposit.addEventListener('submit', async e => {
   console.log("Depositing", eth, "eth and", spc, "spc")
 
   await connectToMetamask()
-  // TODO: Call router contract deposit function
+  await contract.connect(signer).addLiquidity(spc, {value: eth});
 })
 
 lp_withdraw.addEventListener('submit', async e => {
@@ -68,7 +76,7 @@ lp_withdraw.addEventListener('submit', async e => {
   console.log("Withdrawing 100% of LP")
 
   await connectToMetamask()
-  // TODO: Call router contract withdraw function
+  await contract.connect(signer).withdraw(ethers.utils.parseEther(form.lp-withdrawn.value));
 })
 
 //
@@ -101,5 +109,10 @@ swap.addEventListener('submit', async e => {
   console.log("Swapping", amountIn, swapIn.type, "for", swapOut.type)
 
   await connectToMetamask()
-  // TODO: Call router contract swap function
+  await contract.connect(signer).swap(amountIn, minOut);
 })
+
+set_router.addEventListener("submit", async e => {
+  e.preventDefault();
+  await poolContract.connect(signer).setRouter(e);
+});

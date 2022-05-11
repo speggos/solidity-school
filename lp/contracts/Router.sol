@@ -22,6 +22,7 @@ contract Router {
 
     /// @dev Specify spc amount to add, send eth in the transaction. Check on the frontend what ratio to use, as it will return the minimum possible amount of spc
     function addLiquidity(uint spcSent) payable external {
+        require(SpaceToken(spc).allowance(msg.sender, address(this)) > spcSent, "Not enough allowance"); 
         Pool p = Pool(pool);
 
         uint ethSent = msg.value;
@@ -76,6 +77,8 @@ contract Router {
         uint tokensToReturn;
         require(k != 0, "No liquidity in pool");
         if (spcIn != 0) {
+            require(SpaceToken(spc).allowance(msg.sender, address(this)) > spcIn, "Not enough allowance"); 
+
             //Swapping SPC -> ETH
             SpaceToken(spc).transferFrom(msg.sender, pool, spcIn);
             // Account for any tax occurring from SPC token

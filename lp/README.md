@@ -1,3 +1,11 @@
+# Addresses on Rinkeby
+
+Deployer wallet: 0xc17a940D94F549a9A236E13602d25e2eb6EFEac1
+spc: 0xEbA2b0C242d51f036A888474c2f0052Ab05331e8
+pool: 0xd3bB99Ca4b79e3CB46b2213e5d1EF352D7f32889
+router: 0x10066cd4724d1Cbe061F7573424fdcbDe12D4e2A
+ico: 0xe5643B3291f483F5114091ccbF93CE96B86E2c9F
+
 # Design Exercise
 
 To add extra rewards to liquidity providers, we'd want to first make sure the amount of time and quantity of liquidity are recorded for the user. This can be accomplished in a few ways, I'll go through one on-chain, and one off-chain:

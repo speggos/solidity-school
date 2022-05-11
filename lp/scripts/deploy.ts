@@ -3,24 +3,41 @@
 //
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
+import { getDefaultProvider, Wallet } from "ethers";
 import { ethers } from "hardhat";
+import { env } from "process";
 import { SpaceToken } from "../typechain";
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
+  //@ts-ignore
+  const deployer = new ethers.Wallet(`${DEV_PRIVATE_KEY}`, getDefaultProvider());
 
   console.log("Deploying contracts with the account:", deployer.address);
 
   console.log("Account balance:", (await deployer.getBalance()).toString());
 
-  const Token = await ethers.getContractFactory("SpaceToken");
-  const token: SpaceToken = await Token.deploy('0x77E9ABa65D1C76F6c17dB182d53462CEb6726162');
-  await token.deployed();
-  console.log("Token address:", token.address);
+    const SPC = await ethers.getContractFactory("SpaceToken");
+    const spc = await SPC.deploy("0xc17a940D94F549a9A236E13602d25e2eb6EFEac1");
+    await spc.deployed();
+    console.log("spc: " + spc.address);
 
-  const ICO = await ethers.getContractFactory("ICO");
-  const ico = await ICO.deploy(token.address);
-  await ico.deployed();
+    const Pool = await ethers.getContractFactory("Pool");
+    const pool = await Pool.deploy(spc.address);
+    await pool.deployed();
+    console.log("pool: " + pool.address);
+
+    const Router = await ethers.getContractFactory("Router");
+    const router = await Router.deploy(spc.address, pool.address);
+    await router.deployed();
+    console.log("router: " + router.address);
+
+    const ICO = await ethers.getContractFactory("ICO");
+    const ico = await ICO.deploy(spc.address, router.address);
+    await ico.deployed()
+    console.log("ico: " + ico.address);
+
+    pool.setRouter(router.address);
+    await spc.approve(await router.address, ethers.constants.MaxInt256);
 }
 
 main()

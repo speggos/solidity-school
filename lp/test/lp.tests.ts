@@ -71,8 +71,10 @@ describe("ICO Assignment", function () {
     await spc.connect(alice).approve(await router.address, ethers.constants.MaxInt256);
 
   });
-  describe("General Tests", async() => {
+  describe.only("General Tests", async() => {
     beforeEach(async() => {
+      console.log((await ethers.getSigners())[0]);
+  
       await ico.progressPhase();
       await ico.progressPhase();
       await ico.connect(a).invest({value: toEther(30000)});
@@ -81,32 +83,6 @@ describe("ICO Assignment", function () {
     it("Deploys a contract", async() => {
       expect(await spc.icoContract()).to.equal(ico.address);
     });
-    // it("Updates balances when tokens/eth are transferred", async() => {
-    //   expect(await provider.getBalance(pool.address)).to.equal(0);
-    //   expect(await spc.balanceOf(pool.address)).to.equal(0);
-    //   expect(await pool.ethBalance()).to.equal(0);
-    //   expect(await pool.spcBalance()).to.equal(0);
-
-    //   await alice.sendTransaction({value: toEther(1), to: await pool.address});
-    //   await spc.connect(treasury).transfer(pool.address, toEther(2));
-
-    //   expect(await provider.getBalance(pool.address)).to.equal(toEther(1));
-    //   expect(await spc.balanceOf(pool.address)).to.equal(toEther(2));
-    //   expect(await pool.ethBalance()).to.equal(0);
-    //   expect(await pool.spcBalance()).to.equal(0);
-
-    //   await pool.updateBalances();
-
-    //   expect(await pool.ethBalance()).to.equal(toEther(1));
-    //   expect(await pool.spcBalance()).to.equal(toEther(2));
-
-    //   await alice.sendTransaction({value: toEther(0.1), to: await pool.address});
-    //   await spc.connect(treasury).transfer(pool.address, toEther(0.2));
-    //   await pool.updateBalances();
-
-    //   expect(await pool.ethBalance()).to.equal(toEther(1.1));
-    //   expect(await pool.spcBalance()).to.equal(toEther(2.2));
-    // });
     it("Allows ICO funds to be withdrawn by deployer", async() => {
       await expect(ico.withdrawIcoProceeds(ethers.constants.AddressZero)).to.be.ok;
       expect(await provider.getBalance(ethers.constants.AddressZero)).to.equal(toEther(30000));
@@ -119,7 +95,11 @@ describe("ICO Assignment", function () {
       
       await spc.connect(treasury).transfer(deployer.address, toEther(1000));
       await spc.connect(treasury).transfer(alice.address, toEther(1000));
-    })
+    });
+    it("Requires allowance to spend SPC tokens when adding liquidity", async() => {
+      await expect(router.connect(bob).addLiquidity(toEther(5))).to.revertedWith("Not enough allowance");
+      await expect(router.connect(alice).addLiquidity(toEther(5))).to.be.ok;
+    });
     it("Allows liquidity to be added", async() => {
       expect(await pool.totalSupply()).to.equal(0);
       await router.addLiquidity(toEther(5), {value: toEther(1)});
@@ -212,7 +192,7 @@ describe("ICO Assignment", function () {
       expect(await spc.balanceOf(alice.address)).to.equal(aliceSpcBefore.add(toEther(10)));
     });
   });
-  describe.only("Swap", async() => {
+  describe("Swap", async() => {
     const k: BigNumber = ethers.BigNumber.from(BigInt(2*10*Math.pow(10,37)));
     beforeEach(async() => {            
       await spc.connect(treasury).transfer(deployer.address, toEther(1000));
@@ -222,6 +202,9 @@ describe("ICO Assignment", function () {
       await expect(router.connect(alice).swap(0, 0, {value: toEther(10)})).to.revertedWith("No liquidity in pool");
 
       await router.addLiquidity(toEther(10), {value: toEther(2)});
+    });
+    it("Requires allowance to spend SPC tokens when swapping", async() => {
+      await expect(router.connect(bob).swap(toEther(5), 0)).to.revertedWith("Not enough allowance");
     });
     it("Allows multiple swaps for SPC->ETH and ETH->SPC at the correct amount including tax", async() => {
       const aliceSpcBefore = await spc.balanceOf(alice.address);
@@ -238,7 +221,7 @@ describe("ICO Assignment", function () {
       expect(await provider.getBalance(pool.address)).to.equal(ethers.BigNumber.from("1836547291092745638").add(toEther(0.2)));
     });
     it("Emits a swap event", async() => {
-      await expect(await router.connect(alice).swap(toEther(1), 0)).to.emit(pool, "Swapped");
+      await expect(await router.connect(alice).swap(toEther(1), 0)).to.emit(router, "Swapped");
     });
     it("Does not allow swapping ETH and SPC in the same transaction", async() => {
       await expect(router.connect(alice).swap(toEther(1), toEther(0.01), {value: toEther(0.1)})).to.revertedWith("Must supply only spc OR eth");
